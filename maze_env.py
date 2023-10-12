@@ -79,7 +79,7 @@ class MutableMaze(MiniGridEnv):
             print("Invalid grid size. Reverting to default.")
             return False
 
-
+    # Set the goal position
     def set_goal(self, goal_pos):
         x, y = goal_pos
 
@@ -99,6 +99,7 @@ class MutableMaze(MiniGridEnv):
         print("Position occupied. Reverting to default.")
         return False
     
+    # Set the maze using the grid string
     def _gen_grid(self, width, height):
         # Create an empty grid
         self.grid = Grid(self.board_size, self.board_size)
@@ -121,15 +122,14 @@ class MutableMaze(MiniGridEnv):
         else:
             self.place_agent()
 
+    # Reset the environment
     def reset(self, grid_string=None, **kwargs,):
         if grid_string is not None:
             self.set_grid_string(grid_string)
         super().reset()
 
-    
+    # Step the environment
     def step(self, action):
-        # 0,1,2,3 = left, right, up, down
-
         self.agent_dir = action
         # print(action)
         obs, reward, term, trunc, info = super().step(2)

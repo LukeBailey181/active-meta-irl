@@ -11,6 +11,7 @@ from minigrid.minigrid_env import MiniGridEnv
 from minigrid.wrappers import ImgObsWrapper, RGBImgPartialObsWrapper
 import numpy as np
 import matplotlib.pyplot as plt
+from goal_setters import random_goal
 
 
 class ManualControl:
@@ -38,22 +39,6 @@ class ManualControl:
                     event.key = pygame.key.name(int(event.key))
                     self.key_handler(event)
 
-    def select_goal(self, env):
-        # Grid_string is a 2D array of integers
-        grid_string = env.grid_string
-        # find all the 0s in the grid_string
-        zero_positions = np.argwhere(grid_string == 0)
-
-        zero_idx = np.random.choice(zero_positions.shape[0])
-
-        goal = zero_positions[zero_idx]
-
-        print(f"Giving goal {goal}")
-
-        # Choose a random 2D position with a 0
-
-        return goal
-
     def step(self, action: Actions):
         _, reward, terminated, truncated, _ = self.env.step(action)
         print(f"step={self.env.step_count}, reward={reward:.2f}")
@@ -69,7 +54,7 @@ class ManualControl:
 
     def reset(self, seed=None):
         if self.set_goal:
-            self.env.set_goal(self.select_goal(self.env))
+            self.env.set_goal(random_goal(self.env))
         self.env.reset(seed=seed)
         self.env.render()
 
