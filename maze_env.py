@@ -8,24 +8,6 @@ from minigrid.core.mission import MissionSpace
 from minigrid.core.world_object import Door, Goal, Key, Wall
 from minigrid.manual_control import ManualControl
 from minigrid.minigrid_env import MiniGridEnv
-from enum import IntEnum
-
-class Actions(IntEnum):
-    # Turn left, turn right, move forward
-    left = 0
-    right = 1
-    forward = 2
-    # Pick up an object
-    pickup = 3
-    # Drop an object
-    drop = 4
-    # Toggle/activate an object
-    toggle = 5
-
-    # Done completing task
-    done = 6
-
-action_map = {Actions.left: 0, Actions.right: 1, Actions.forward: 2, Actions.pickup: 3, Actions.drop: 4, Actions.toggle: 5, Actions.done: 6}
 
 # A maze class which allows the user to specify the maze layout
 class MutableMaze(MiniGridEnv):
@@ -128,44 +110,18 @@ class MutableMaze(MiniGridEnv):
             self.agent_dir = self.agent_start_dir
         else:
             self.place_agent()
+
     
     def step(self, action):
         # 0,1,2,3 = left, right, up, down
 
-        self.agent_dir = action_map[action]
+        self.agent_dir = action
         # print(action)
         obs, reward, term, trunc, info = super().step(2)
         self.step_count += 1
 
         obs_refined = [self.agent_pos[0], self.agent_pos[1], self.agent_dir]
 
+
         return obs_refined, reward, term, trunc, info
-
-
-    def _gen_grid_old(self, width, height):
-        # Create an empty grid
-        self.grid = Grid(width, height)
-
-        # Generate the surrounding walls
-        self.grid.wall_rect(0, 0, width, height)
-
-        # Generate verical separation wall
-        for i in range(0, height):
-            self.grid.set(5, i, Wall())
-        
-        # Place the door and key
-        self.grid.set(5, 6, Door(COLOR_NAMES[0], is_locked=True))
-        self.grid.set(3, 6, Key(COLOR_NAMES[0]))
-
-        # Place a goal square in the bottom-right corner
-        self.put_obj(Goal(), width - 2, height - 2)
-
-        # Place the agent
-        if self.agent_start_pos is not None:
-            self.agent_pos = self.agent_start_pos
-            self.agent_dir = self.agent_start_dir
-        else:
-            self.place_agent()
-
-        self.mission = "grand mission"
 

@@ -22,7 +22,8 @@ env = MutableMaze(
     render_mode='human',)
 
 # for i in range(200):
-#     action = env.action_space.sample()
+#     # action = env.action_space.sample()
+#     action = np.random.choice([0,1,2,3])
 #     obs, reward, term, trunc, info = env.step(action)
 #     print(obs)
 #     env.render()
