@@ -6,7 +6,6 @@ from minigrid.core.constants import COLOR_NAMES
 from minigrid.core.grid import Grid
 from minigrid.core.mission import MissionSpace
 from minigrid.core.world_object import Door, Goal, Key, Wall
-from minigrid.manual_control import ManualControl
 from minigrid.minigrid_env import MiniGridEnv
 
 # A maze class which allows the user to specify the maze layout
@@ -18,24 +17,27 @@ class MutableMaze(MiniGridEnv):
         H = None,
         **kwargs,
     ):
+        # Used to track agent position in the superclass
         self.agent_start_pos = (1,1)
         self.agent_start_dir = 0
-
         self.step_count = 0
 
+        # Size of our board (NxN)
         self.board_size = board_size
 
+        # The maze is specified as a 2D integer array
         init_grid_string = np.array(init_grid_string).reshape((board_size, board_size))
         self.grid_string = init_grid_string.T
 
+        # IDK what this does --- for the superclass
         mission_space = MissionSpace(mission_func=self._gen_mission)
 
-
+        # Time horizon
         if H is None:
             H = 4 * board_size**2
-
         self.H = H
 
+        # Initialize the superclass
         super().__init__(
             mission_space=mission_space,
             grid_size=board_size,
@@ -45,16 +47,19 @@ class MutableMaze(MiniGridEnv):
             **kwargs,
         )
 
+        # Reset the board
         self.reset()
 
+    # IDK --- used by the superclass
     @staticmethod
     def _gen_mission():
         return "grand mission"
 
     # Check if pos is inside the box with upper-left corner ul and bottom-right corner br
     def _in_box(self, pos, ul, br):
-        return (pos[0] >= ul[0] and pos[0] < br[0] and pos[1] >= ul[1] and pos[1] < br[1])
+        return (pos[0] >= ul[0] and pos[0] <= br[0] and pos[1] >= ul[1] and pos[1] <= br[1])
 
+    # Set the grid string
     def set_grid_string(self, string):
         string = np.array(string)
 
@@ -74,16 +79,21 @@ class MutableMaze(MiniGridEnv):
             print("Invalid grid size. Reverting to default.")
             return False
 
+
     def set_goal(self, goal_pos):
-        y, x = goal_pos
+        x, y = goal_pos
 
         if not self._in_box(goal_pos, (1, 1), (self.board_size - 1, self.board_size - 1)):
             print("Position outside of board. Reverting to default.")
             return False
 
         if self.grid_string[x][y] == 0:
+            current_goal_pos = np.argwhere(self.grid_string == 3)[0]
+            self.grid_string[current_goal_pos[0]][current_goal_pos[1]] = 0
             self.grid_string[x][y] = 3
             return True
+    
+        print(y, x)
 
         # Otherwise
         print("Position occupied. Reverting to default.")
@@ -110,6 +120,11 @@ class MutableMaze(MiniGridEnv):
             self.agent_dir = self.agent_start_dir
         else:
             self.place_agent()
+
+    def reset(self, grid_string=None, **kwargs,):
+        if grid_string is not None:
+            self.set_grid_string(grid_string)
+        super().reset()
 
     
     def step(self, action):
