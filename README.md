@@ -23,3 +23,7 @@ pip install minigrid gym pygame matplotlib numpy
 ```manual_conroller``` contains our manual control system, for debugging and visualization (**and providing expert samples????**)
 
 ```goal_setters``` contains methods for changing the goal, given an environment as input.
+
+```helpers``` contains helper methods for performing common computations.
+
+```mazes``` contains both fixed mazes and functions for generating novel mazes.

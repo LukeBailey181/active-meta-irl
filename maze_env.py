@@ -135,7 +135,7 @@ class MutableMaze(MiniGridEnv):
         obs, reward, term, trunc, info = super().step(2)
         self.step_count += 1
 
-        obs_refined = [self.agent_pos[0], self.agent_pos[1], self.agent_dir]
+        obs_refined = [self.agent_pos[0], self.agent_pos[1]]
 
 
         return obs_refined, reward, term, trunc, info
