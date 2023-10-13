@@ -64,18 +64,19 @@ class MutableMaze(MiniGridEnv):
         string = np.array(string)
 
         # Check that each character is in {0,1,2,3}, and 2 and 3 appear exactly once
-        if not (set(string) <= set([0, 1, 2, 3]) and np.sum(string == 2) == 1 and np.sum(string == 3) == 1):
+        if not (set(list(string.flatten())) <= set([0, 1, 2, 3]) and np.sum(string == 2) == 1 and np.sum(string == 3) == 1):
             print("Invalid grid string. Reverting to default.")
             return False
 
         # Check that the length matches the grid dimensions
-        if len(string) == self.board_size ** 2:
+        if string.shape[0] * string.shape[1] == self.board_size ** 2:
             # Shape the string into a square
             string = string.reshape((self.board_size, self.board_size)).T
             self.grid_string = string
 
             return True
         else:
+            print(len(string), self.board_size ** 2)
             print("Invalid grid size. Reverting to default.")
             return False
 
