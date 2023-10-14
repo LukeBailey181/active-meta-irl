@@ -6,29 +6,48 @@ from mazes import *
 from helpers import *
 import argparse
 from algos.bc import BehaviorCloning, generateExpertDataset
+import yaml
 
-control_options = ['manual', 'random', 'policy', 'expert', 'bc']
-randomization_options = ['g', 'm', '']
-maze_options = ['small', 'big', 'huge']
+control_options = ["manual", "random", "policy", "expert", "bc"]
+randomization_options = ["g", "m", ""]
+maze_options = ["small", "big", "huge"]
 
 
 # Control the agent using keyboard input
-def manualController(env, r=""):
+def manualController(env, config):
     manual_control = ManualControl(env, seed=42, set_goal=True)
     manual_control.start()
 
-def bcController(env, r="", num_train_samples=500, num_test_samples=100):
 
-    train_dataset, test_dataset = generateExpertDataset(env, num_train_samples=num_train_samples, num_test_samples=num_test_samples, r=r)
+def bcController(env, config):
+    if config["base"]["num_expert_samples"] is not None:
+        num_train_samples = config["base"]["num_expert_samples"]
+    elif config["base"]["num_train_samples"] is not None:
+        num_train_samples = config["base"]["num_train_samples"]
+    else:
+        num_train_samples = 500
 
-    BehaviorCloning(train_dataset=train_dataset, test_dataset=test_dataset, env=env, eval_freq=50, save_weights=True, r=r)
+    num_test_samples = config["bc"]["num_test_samples"]
+
+    r = config["base"]["randomize"]
+
+    train_dataset, test_dataset = generateExpertDataset(
+        env, num_train_samples=num_train_samples, num_test_samples=num_test_samples, r=r
+    )
+
+    BehaviorCloning(
+        train_dataset=train_dataset,
+        test_dataset=test_dataset,
+        env=env,
+        config=config,
+    )
 
 
 # Control the agent using random actions
-def randomController(env, r=""):
+def randomController(env, config):
     while True:
         # action = env.action_space.sample()
-        action = np.random.choice([0,1,2,3])
+        action = np.random.choice([0, 1, 2, 3])
         obs, reward, term, trunc, info = env.step(action)
         env.render()
         if term or trunc:
@@ -37,152 +56,184 @@ def randomController(env, r=""):
 
 
 # Control the agent using the optimal policy
-def expertController(env, r="", vis=False):
-    # Randomize either the goal or the maze
-    if r == 'g':
-        env.set_goal(random_goal(env))
-        env.reset()
-    elif r == 'm':
-        env.reset(grid_string=generate_maze(env.board_size))
-
-    # NxN matrix of optimal actions
-    policy = solve_maze(env.grid_string)
-    
-    # Start position
-    init = np.argwhere(big_maze == 2)[0]
-
-    # First step
-    action = policy[init[0], init[1]]
-    obs, reward, term, trunc, info = env.step(action)
-    env.render()
-
-    if vis:
-        visualize_optimal_moves(env.grid_string, policy, save=True)
-
-    while True:
-        action = policy[obs[0], obs[1]]
-        obs, reward, term, trunc, info = env.step(action)
-        env.render()
-        if term or trunc:
-            if r == 'g':
-                env.set_goal(random_goal(env))
-                env.reset()
-            elif r == 'm':
-                env.reset(grid_string=generate_maze(env.board_size))
-
-            policy = solve_maze(env.grid_string)
-
-            # Check that the policy is valid
-            try:
-                assert np.all(policy != -1)
-            except:
-                print("INVALID POLICY !!!!! THIS SHOULD NEVER HAPPEN")
-                print(policy)
-                print(env.grid_string)
-                break
-
-            if vis:
-                visualize_optimal_moves(env.grid_string, policy)
-            
-            obs = np.argwhere(env.grid_string == 2)[0]
+def expertController(env, config):
+    r = config["base"]["randomize"]
+    _, _ = generateExpertDataset(
+        env, num_train_samples=100, r=r
+    )
 
 
 # Control the agent using a reinforcement learning algorithm
-def rlController(env, r=""):
+def rlController(env, config):
     print("Not implemented")
 
 
-def main(args, maze_init):
+def main(config, maze_init):
     # Define maze environment
+
+    render_mode = "rgb_array" if config["base"]["headless"] else "human"
+
     env = MutableMaze(
         board_size=maze_init.shape[0],
         init_grid_string=maze_init,
         H=100,
-        render_mode='human',)
+        render_mode=render_mode,
+    )
 
-    vis = True
-
-    if args.control == 'manual':
-        manualController(env, r=args.randomize)
-    elif args.control == 'random':
-        randomController(env, r=args.randomize)
-    elif args.control == 'policy':
-        expertController(env, r=args.randomize)
-    elif args.control == 'expert':
-        expertController(env, r=args.randomize, vis=vis)
-    elif args.control == 'bc':
-        bcController(env, r=args.randomize)
+    if config["base"]["control"] == "manual":
+        manualController(env, config)
+    elif config["base"]["control"] == "random":
+        randomController(env, config)
+    elif config["base"]["control"] == "policy":
+        rlController(env, config)
+    elif config["base"]["control"] == "expert":
+        expertController(env, config)
+    elif config["base"]["control"] == "bc":
+        bcController(env, config)
     else:
         print("Invalid control type")
+
+
+def update_config(config, args):
+    config = yaml.load(open(config, "r"), Loader=yaml.FullLoader)
+
+    # For each arg key
+    keys = vars(args).keys()
+    for key in keys:
+        # If the arg is not None, update the config
+        if vars(args)[key] is not None:
+            config["base"][key] = vars(args)[key]
+    
+    # If any of the options aren't in args, add default values to config
+    if config["base"]["control"] is None:
+        config["base"]["control"] = "expert"
+        config["base"]["num_expert_samples"] = 100
+    if config["base"]["randomize"] is None:
+        config["base"]["randomize"] = ""
+    if config["base"]["size"] is None:
+        config["base"]["size"] = None
+    if config["base"]["maze"] is None and args.size is None:
+        config["base"]["maze"] = "big"
+
+    return config
+
+def create_config(args):
+    keys = vars(args).keys()
+    config = {}
+    config["base"] = {}
+    config["base"]["control"] = args.control
+    config["base"]["num_expert_samples"] = None
+    config["base"]["randomize"] = args.randomize
+    config["base"]["size"] = args.size
+    config["base"]["maze"] = args.maze
+    config["base"]["config"] = args.config
+    config["base"]["headless"] = False
+    config["base"]["H"] = 100
+
+    # If any of the options aren't in args, add default values to config
+    if args.control is None:
+        config["base"]["control"] = "expert"
+        config["base"]["num_expert_samples"] = 100
+    if args.randomize is None:
+        config["base"]["randomize"] = ""
+    if args.size is None:
+        config["base"]["size"] = None
+    if args.maze is None and args.size is None:
+        config["base"]["maze"] = "big"
+    if args.config is None:
+        config["base"]["config"] = None
+    return config
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run a maze controller")
     parser.add_argument(
-        "-c", 
-        "--control", 
+        "-c",
+        "--control",
         type=str,
-        default="expert",
         choices=control_options,
-        help="Control type: manual, random, policy, or expert")
-    parser.add_argument(
-        '-r',
-        '--randomize',
-        type=str,
-        default='',
-        choices=randomization_options,
-        help='Randomize the maze. Specify "g" for goal, "m" for maze, and "" for none.')
-    parser.add_argument(
-        '-s',
-        '--size',
-        type=int,
-        default=None,
-        help='Size of the maze. Defaults to current maze size if fixed maze is specified.')
-    parser.add_argument(
-        '-m',
-        '--maze',
-        type=str,
-        default=None,
-        choices=maze_options,
-        help='Fixed maze to use. Limited to mazes found in mazes.py.'
+        help="Control type: manual, random, policy, or expert",
     )
-    
+    parser.add_argument(
+        "-r",
+        "--randomize",
+        type=str,
+        choices=randomization_options,
+        help='Randomize the maze. Specify "g" for goal, "m" for maze, and "" for none.',
+    )
+    parser.add_argument(
+        "-s",
+        "--size",
+        type=int,
+        help="Size of the maze. Defaults to current maze size if fixed maze is specified.",
+    )
+    parser.add_argument(
+        "-m",
+        "--maze",
+        type=str,
+        choices=maze_options,
+        help="Fixed maze to use. Limited to mazes found in mazes.py.",
+    )
+
+    parser.add_argument(
+        "-N",
+        "--num_expert_samples",
+        type=int,
+        help="Number of expert samples to draw for IL/IRL. Does not include test samples.",
+    )
+
+    parser.add_argument(
+        "-y",
+        "--config",
+        type=str,
+        default=None,
+        help="Configuration file to run from. Any additional arguments will overwrite config.",
+    )
+
     args = parser.parse_args()
+    if args.config is None:
+        config = create_config(args)
+    else:
+        config = update_config(args.config, args)
+
+    print("Configuration: ")
+    print(config)
+
     # Ensure that the arguments are valid
-    if args.randomize == 'g' and not args.maze and not args.size:
+    if config["base"]["randomize"] == "g" and not config["base"]["maze"] and not config["base"]["size"]:
         print("Cannot randomize goal without specifying a fixed maze or size.")
         exit()
-    elif args.randomize == 'g' and args.maze:
-        if args.maze == 'small':
+    elif config["base"]["randomize"] == "g" and config["base"]["maze"]:
+        if config["base"]["maze"] == "small":
             maze = small_maze
-        elif args.maze == 'big':
+        elif config["base"]["maze"] == "big":
             maze = big_maze
         else:
             maze = huge_maze
-        if args.size:
+        if config["base"]["size"]:
             print("WARNING: Ignoring arg size since a fixed maze was specified.")
-    elif args.randomize == 'g' and args.size:
-        maze = generate_maze(args.size)
-    elif args.randomize == 'm' and not args.size:
+    elif config["base"]["randomize"] == "g" and config["base"]["size"]:
+        maze = generate_maze(config["base"]["size"])
+    elif config["base"]["randomize"] == "m" and not config["base"]["size"]:
         print("Cannot randomize maze without specifying a size.")
         exit()
-    elif args.randomize == 'm' and args.size:
-        maze = generate_maze(args.size)
-        if args.maze:
+    elif config["base"]["randomize"] == "m" and config["base"]["size"]:
+        maze = generate_maze(config["base"]["size"])
+        if config["base"]["maze"]:
             print("WARNING: Ignoring arg maze since maze randomization was specified.")
-    elif args.maze: 
-        if args.maze == 'small':
+    elif config["base"]["maze"]:
+        if config["base"]["maze"] == "small":
             maze = small_maze
-        elif args.maze == 'big':
+        elif config["base"]["maze"] == "big":
             maze = big_maze
         else:
             maze = huge_maze
-        if args.size:
+        if config["base"]["size"]:
             print("WARNING: Ignoring arg size since a fixed maze was specified.")
-    elif args.size:
-        maze = generate_maze(args.size)
+    elif config["base"]["size"]:
+        maze = generate_maze(config["base"]["size"])
     else:
         print("ERROR: No maze or size specified.")
         exit()
 
-    main(args, maze)
+    main(config, maze)

@@ -19,7 +19,7 @@ class ManualControl:
         self,
         env: Env,
         seed=None,
-        set_goal = False,
+        set_goal=False,
     ) -> None:
         self.env = env
         self.seed = seed

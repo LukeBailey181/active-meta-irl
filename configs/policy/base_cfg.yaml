@@ -1,0 +1,8 @@
+base:
+  config: "configs/policy/base_cfg.yaml"
+  control: "policy"
+  randomize: "g"
+  maze: "big"
+  size: None
+  headless: True
+  H: 100

@@ -8,10 +8,26 @@ from maze_env import MutableMaze
 import matplotlib.pyplot as plt
 from goal_setters import random_goal
 from mazes import *
+import os
+import yaml
 
 
-def BehaviorCloning(train_dataset, test_dataset=None, env=None, epochs=2000, epsilon=0.1, batch_size=32, lr=0.001, eval_freq=None, save_weights=False, r=""):
+def BehaviorCloning(
+    train_dataset,
+    test_dataset=None,
+    env=None,
+    config=yaml.load(open("configs/bc/bc_exp_cfg.yaml", "r"), Loader=yaml.FullLoader)
+):
+    r = config["base"]["randomize"]
+    epochs = config["bc"]["num_epochs"]
+    batch_size = config["bc"]["batch_size"]
+    lr = config["bc"]["learning_rate"]
+    save_weights = config["bc"]["save_weights"]
+    eval_freq = config["bc"]["eval_freq"]
+    num_eval_runs = config["bc"]["num_eval_runs"]
+
     state_size = train_dataset[0][0].shape[0]
+
     # Define the network
     class Net(nn.Module):
         def __init__(self):
@@ -29,10 +45,13 @@ def BehaviorCloning(train_dataset, test_dataset=None, env=None, epochs=2000, eps
     net = Net()
 
     # Turn the train dataset from an Nx|S|x4 array into a torch dataset
-    train_dataset = torch.utils.data.TensorDataset(torch.tensor(train_dataset[0]).float(), torch.tensor(train_dataset[1]).long())
+    train_dataset = torch.utils.data.TensorDataset(
+        torch.tensor(train_dataset[0]).float(), torch.tensor(train_dataset[1]).long()
+    )
     if test_dataset is not None:
-        test_dataset = torch.utils.data.TensorDataset(torch.tensor(test_dataset[0]).float(), torch.tensor(test_dataset[1]).long())
-
+        test_dataset = torch.utils.data.TensorDataset(
+            torch.tensor(test_dataset[0]).float(), torch.tensor(test_dataset[1]).long()
+        )
 
     # define info for logging
     train_losses = []
@@ -49,13 +68,19 @@ def BehaviorCloning(train_dataset, test_dataset=None, env=None, epochs=2000, eps
     criterion = nn.CrossEntropyLoss()
 
     # Define the dataloader
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=True
+    )
 
     # Train the network
 
+    mod = eval_freq if eval_freq is not None else epochs // 10
+
     for epoch in range(epochs):
-        if epoch % 10 == 0:
+        if epoch % mod == 0:
             print(f"Epoch: {epoch} / {epochs}")
         # Training loop
         epoch_train_lossses = []
@@ -123,9 +148,7 @@ def BehaviorCloning(train_dataset, test_dataset=None, env=None, epochs=2000, eps
                         batch_reward = []
                         obs = env.reset()
 
-                        num_runs = 25
-
-                        for i in range(num_runs):
+                        for i in range(num_eval_runs):
                             reward_sum = 0
                             while True:
                                 action = net(torch.tensor(obs).float()).argmax().item()
@@ -135,11 +158,13 @@ def BehaviorCloning(train_dataset, test_dataset=None, env=None, epochs=2000, eps
                                 if term or trunc:
                                     break
 
-                            if r == 'g':
+                            if r == "g":
                                 env.set_goal(random_goal(env))
                                 obs = env.reset()
-                            elif r == 'm':
-                                obs = env.reset(grid_string=generate_maze(env.board_size))
+                            elif r == "m":
+                                obs = env.reset(
+                                    grid_string=generate_maze(env.board_size)
+                                )
                             else:
                                 obs = env.reset()
 
@@ -149,51 +174,72 @@ def BehaviorCloning(train_dataset, test_dataset=None, env=None, epochs=2000, eps
 
     # Visualization
     plt.figure()
+
+    # Label the whole figure
+    plt.suptitle(
+        f"{env.grid_string.shape[0]}x{env.grid_string.shape[0]} Grid, {train_dataset.__len__()} Expert Samples"
+    )
     # Create three subplots for train/test loss, train/test accuracy, and evaluation reward
     plt.subplot(3, 1, 1)
-    plt.plot(train_losses, 'b-', label="Train Loss")
+    plt.plot(train_losses, "b-", label="Train Loss")
     if test_dataset is not None:
-        plt.plot(logged_epochs, test_losses, 'r-', label="Test Loss")
+        plt.plot(logged_epochs, test_losses, "r-", label="Test Loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.legend()
     plt.subplot(3, 1, 2)
-    plt.plot(train_accs, 'b-', label="Train Accuracy")
+    plt.plot(train_accs, "b-", label="Train Accuracy")
     if test_dataset is not None:
-        plt.plot(logged_epochs, test_accs, 'r-', label="Test Accuracy")
+        plt.plot(logged_epochs, test_accs, "r-", label="Test Accuracy")
     plt.xlabel("Epoch")
     plt.ylabel("Accuracy")
     plt.legend()
     plt.subplot(3, 1, 3)
-    plt.plot(logged_epochs, eval_reward, 'r-',  label="Evaluation Reward")
+    plt.plot(logged_epochs, eval_reward, "r-", label="Evaluation Reward")
     plt.xlabel("Epoch")
     plt.ylabel("Reward")
     plt.legend()
 
-    save_string = f"bc_{env.grid_string.shape[0]}x{env.grid_string.shape[0]}_r_{r}_samples_{train_dataset.__len__()}"
+    save_string = f"bc_{env.grid_string.shape[0]}x{env.grid_string.shape[0]}_r_{r}_samples_{train_dataset.__len__()}_batch_{batch_size}_epochs_{epochs}"
+
+    # Make save_string directory
+    if not os.path.exists(f"logs/bc/{save_string}"):
+        os.makedirs(f"logs/bc/{save_string}")
 
     # Save the model
     if save_weights:
-        torch.save(net.state_dict(), "logs/bc/models/" + save_string + ".pt")
+        torch.save(net.state_dict(), f"logs/bc/{save_string}/" + save_string + ".pt")
 
-    plt.savefig("logs/bc/" + save_string + ".png")
+    plt.savefig(f"logs/bc/{save_string}/" + save_string + ".png")
 
     # Save the data as a numpy array
-    np.savez("logs/bc/" + save_string + ".npz", train_losses=train_losses, test_losses=test_losses, train_accs=train_accs, test_accs=test_accs, eval_reward=eval_reward, logged_epochs=logged_epochs)
+    np.savez(
+        f"logs/bc/{save_string}/" + save_string + ".npz",
+        train_losses=train_losses,
+        test_losses=test_losses,
+        train_accs=train_accs,
+        test_accs=test_accs,
+        eval_reward=eval_reward,
+        logged_epochs=logged_epochs,
+    )
 
-    plt.show()
+    # plt.show()
 
 
 def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100):
-    num_samples = num_train_samples + num_test_samples if num_test_samples is not None else num_train_samples
+    num_samples = (
+        num_train_samples + num_test_samples
+        if num_test_samples is not None
+        else num_train_samples
+    )
     # Collect expert data
     states = np.zeros((num_samples, 4))
     actions = np.zeros((num_samples, 1))
 
-    if r == 'g':
+    if r == "g":
         env.set_goal(random_goal(env))
         obs = env.reset()
-    elif r == 'm':
+    elif r == "m":
         obs = env.reset(grid_string=generate_maze(env.board_size))
     else:
         obs = env.reset()
@@ -212,10 +258,10 @@ def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100
 
         env.render()
         if term or trunc:
-            if r == 'g':
+            if r == "g":
                 env.set_goal(random_goal(env))
                 obs = env.reset()
-            elif r == 'm':
+            elif r == "m":
                 obs = env.reset(grid_string=generate_maze(env.board_size))
             else:
                 obs = env.reset()
