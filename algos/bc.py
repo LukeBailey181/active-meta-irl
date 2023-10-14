@@ -10,6 +10,7 @@ from goal_setters import random_goal
 from mazes import *
 import os
 import yaml
+from helpers import Net
 
 
 def BehaviorCloning(
@@ -28,21 +29,7 @@ def BehaviorCloning(
 
     state_size = train_dataset[0][0].shape[0]
 
-    # Define the network
-    class Net(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.fc1 = nn.Linear(state_size, 64)
-            self.fc2 = nn.Linear(64, 64)
-            self.fc3 = nn.Linear(64, 4)
-
-        def forward(self, x):
-            x = F.relu(self.fc1(x))
-            x = F.relu(self.fc2(x))
-            x = self.fc3(x)
-            return x
-
-    net = Net()
+    net = Net(state_size)
 
     # Turn the train dataset from an Nx|S|x4 array into a torch dataset
     train_dataset = torch.utils.data.TensorDataset(

@@ -4,7 +4,10 @@ import numpy as np
 # Randomly select an open location
 def random_goal(env):
     # Grid_string is a 2D array of integers
-    grid_string = env.grid_string
+    if type(env) == np.ndarray:
+        grid_string = env
+    else:
+        grid_string = env.grid_string
     # find all the 0s in the grid_string
     zero_positions = np.argwhere(grid_string == 0)
 

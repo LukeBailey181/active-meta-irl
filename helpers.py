@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
 from matplotlib.colors import ListedColormap
+import torch.nn as nn
+import torch.nn.functional as F
+import torch
 
 #################################################################################
 ###  This file contains a number of helper functions, including:              ###
@@ -40,6 +43,20 @@ tuple_to_key = {
     (0, -1): "left",
     (0, 1): "right",
 }
+
+# Define the network
+class Net(nn.Module):
+    def __init__(self, state_size):
+        super().__init__()
+        self.fc1 = nn.Linear(state_size, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 4)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 
 # Returns the transition matrix for a given maze
