@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # Randomly select an open location
 def random_goal(env):
     # Grid_string is a 2D array of integers

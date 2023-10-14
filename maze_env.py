@@ -8,17 +8,18 @@ from minigrid.core.mission import MissionSpace
 from minigrid.core.world_object import Door, Goal, Key, Wall
 from minigrid.minigrid_env import MiniGridEnv
 
+
 # A maze class which allows the user to specify the maze layout
 class MutableMaze(MiniGridEnv):
     def __init__(
         self,
         board_size=10,
         init_grid_string=None,
-        H = None,
+        H=None,
         **kwargs,
     ):
         # Used to track agent position in the superclass
-        self.agent_start_pos = (1,1)
+        self.agent_start_pos = (1, 1)
         self.agent_start_dir = 0
         self.step_count = 0
 
@@ -59,26 +60,32 @@ class MutableMaze(MiniGridEnv):
 
     # Check if pos is inside the box with upper-left corner ul and bottom-right corner br
     def _in_box(self, pos, ul, br):
-        return (pos[0] >= ul[0] and pos[0] <= br[0] and pos[1] >= ul[1] and pos[1] <= br[1])
+        return (
+            pos[0] >= ul[0] and pos[0] <= br[0] and pos[1] >= ul[1] and pos[1] <= br[1]
+        )
 
     # Set the grid string
     def set_grid_string(self, string):
         string = np.array(string)
 
         # Check that each character is in {0,1,2,3}, and 2 and 3 appear exactly once
-        if not (set(list(string.flatten())) <= set([0, 1, 2, 3]) and np.sum(string == 2) == 1 and np.sum(string == 3) == 1):
+        if not (
+            set(list(string.flatten())) <= set([0, 1, 2, 3])
+            and np.sum(string == 2) == 1
+            and np.sum(string == 3) == 1
+        ):
             print("Invalid grid string. Reverting to default.")
             return False
 
         # Check that the length matches the grid dimensions
-        if string.shape[0] * string.shape[1] == self.board_size ** 2:
+        if string.shape[0] * string.shape[1] == self.board_size**2:
             # Shape the string into a square
             string = string.reshape((self.board_size, self.board_size)).T
             self.grid_string = string
 
             return True
         else:
-            print(len(string), self.board_size ** 2)
+            print(len(string), self.board_size**2)
             print("Invalid grid size. Reverting to default.")
             return False
 
@@ -86,7 +93,9 @@ class MutableMaze(MiniGridEnv):
     def set_goal(self, goal_pos):
         x, y = goal_pos
 
-        if not self._in_box(goal_pos, (1, 1), (self.board_size - 1, self.board_size - 1)):
+        if not self._in_box(
+            goal_pos, (1, 1), (self.board_size - 1, self.board_size - 1)
+        ):
             print("Position outside of board. Reverting to default.")
             return False
 
@@ -99,7 +108,7 @@ class MutableMaze(MiniGridEnv):
         # Otherwise
         print("Position occupied. Reverting to default.")
         return False
-    
+
     # Set the maze using the grid string
     def _gen_grid(self, width, height):
         # Create an empty grid
@@ -124,14 +133,23 @@ class MutableMaze(MiniGridEnv):
             self.place_agent()
 
     # Reset the environment
-    def reset(self, grid_string=None, **kwargs,):
+    def reset(
+        self,
+        grid_string=None,
+        **kwargs,
+    ):
         if grid_string is not None:
             self.set_grid_string(grid_string)
         super().reset()
 
         self.goal_pos = np.argwhere(self.grid_string == 3)[0]
 
-        return [self.agent_pos[0], self.agent_pos[1], self.goal_pos[0], self.goal_pos[1]]
+        return [
+            self.agent_pos[0],
+            self.agent_pos[1],
+            self.goal_pos[0],
+            self.goal_pos[1],
+        ]
 
     # Step the environment
     def step(self, action):
@@ -142,9 +160,11 @@ class MutableMaze(MiniGridEnv):
 
         reward = int(reward != 0)
 
-
-        obs_refined = [self.agent_pos[0], self.agent_pos[1], self.goal_pos[0], self.goal_pos[1]]
-
+        obs_refined = [
+            self.agent_pos[0],
+            self.agent_pos[1],
+            self.goal_pos[0],
+            self.goal_pos[1],
+        ]
 
         return obs_refined, reward, term, trunc, info
-
