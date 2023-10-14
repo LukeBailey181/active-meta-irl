@@ -58,9 +58,7 @@ def randomController(env, config):
 # Control the agent using the optimal policy
 def expertController(env, config):
     r = config["base"]["randomize"]
-    _, _ = generateExpertDataset(
-        env, num_train_samples=100, r=r
-    )
+    _, _ = generateExpertDataset(env, num_train_samples=100, r=r)
 
 
 # Control the agent using a reinforcement learning algorithm
@@ -103,7 +101,7 @@ def update_config(config, args):
         # If the arg is not None, update the config
         if vars(args)[key] is not None:
             config["base"][key] = vars(args)[key]
-    
+
     # If any of the options aren't in args, add default values to config
     if config["base"]["control"] is None:
         config["base"]["control"] = "expert"
@@ -116,6 +114,7 @@ def update_config(config, args):
         config["base"]["maze"] = "big"
 
     return config
+
 
 def create_config(args):
     keys = vars(args).keys()
@@ -200,7 +199,11 @@ if __name__ == "__main__":
     print(config)
 
     # Ensure that the arguments are valid
-    if config["base"]["randomize"] == "g" and not config["base"]["maze"] and not config["base"]["size"]:
+    if (
+        config["base"]["randomize"] == "g"
+        and not config["base"]["maze"]
+        and not config["base"]["size"]
+    ):
         print("Cannot randomize goal without specifying a fixed maze or size.")
         exit()
     elif config["base"]["randomize"] == "g" and config["base"]["maze"]:

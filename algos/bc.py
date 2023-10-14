@@ -16,7 +16,7 @@ def BehaviorCloning(
     train_dataset,
     test_dataset=None,
     env=None,
-    config=yaml.load(open("configs/bc/bc_exp_cfg.yaml", "r"), Loader=yaml.FullLoader)
+    config=yaml.load(open("configs/bc/bc_exp_cfg.yaml", "r"), Loader=yaml.FullLoader),
 ):
     r = config["base"]["randomize"]
     epochs = config["bc"]["num_epochs"]
