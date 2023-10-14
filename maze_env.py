@@ -29,6 +29,8 @@ class MutableMaze(MiniGridEnv):
         init_grid_string = np.array(init_grid_string).reshape((board_size, board_size))
         self.grid_string = init_grid_string.T
 
+        self.goal_pos = np.argwhere(self.grid_string == 3)[0]
+
         # IDK what this does --- for the superclass
         mission_space = MissionSpace(mission_func=self._gen_mission)
 
@@ -93,8 +95,6 @@ class MutableMaze(MiniGridEnv):
             self.grid_string[current_goal_pos[0]][current_goal_pos[1]] = 0
             self.grid_string[x][y] = 3
             return True
-    
-        print(y, x)
 
         # Otherwise
         print("Position occupied. Reverting to default.")
@@ -129,6 +129,10 @@ class MutableMaze(MiniGridEnv):
             self.set_grid_string(grid_string)
         super().reset()
 
+        self.goal_pos = np.argwhere(self.grid_string == 3)[0]
+
+        return [self.agent_pos[0], self.agent_pos[1], self.goal_pos[0], self.goal_pos[1]]
+
     # Step the environment
     def step(self, action):
         self.agent_dir = action
@@ -136,7 +140,10 @@ class MutableMaze(MiniGridEnv):
         obs, reward, term, trunc, info = super().step(2)
         self.step_count += 1
 
-        obs_refined = [self.agent_pos[0], self.agent_pos[1]]
+        reward = int(reward != 0)
+
+
+        obs_refined = [self.agent_pos[0], self.agent_pos[1], self.goal_pos[0], self.goal_pos[1]]
 
 
         return obs_refined, reward, term, trunc, info

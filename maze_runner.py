@@ -5,8 +5,9 @@ from goal_setters import random_goal
 from mazes import *
 from helpers import *
 import argparse
+from algos.bc import BehaviorCloning, generateExpertDataset
 
-control_options = ['manual', 'random', 'policy', 'expert']
+control_options = ['manual', 'random', 'policy', 'expert', 'bc']
 randomization_options = ['g', 'm', '']
 maze_options = ['small', 'big', 'huge']
 
@@ -15,6 +16,12 @@ maze_options = ['small', 'big', 'huge']
 def manualController(env, r=""):
     manual_control = ManualControl(env, seed=42, set_goal=True)
     manual_control.start()
+
+def bcController(env, r="", num_train_samples=500, num_test_samples=100):
+
+    train_dataset, test_dataset = generateExpertDataset(env, num_train_samples=num_train_samples, num_test_samples=num_test_samples, r=r)
+
+    BehaviorCloning(train_dataset=train_dataset, test_dataset=test_dataset, env=env, eval_freq=50, save_weights=True, r=r)
 
 
 # Control the agent using random actions
@@ -90,7 +97,7 @@ def main(args, maze_init):
     env = MutableMaze(
         board_size=maze_init.shape[0],
         init_grid_string=maze_init,
-        H=200,
+        H=100,
         render_mode='human',)
 
     vis = True
@@ -103,6 +110,8 @@ def main(args, maze_init):
         expertController(env, r=args.randomize)
     elif args.control == 'expert':
         expertController(env, r=args.randomize, vis=vis)
+    elif args.control == 'bc':
+        bcController(env, r=args.randomize)
     else:
         print("Invalid control type")
 

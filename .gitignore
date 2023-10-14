@@ -3,6 +3,16 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Large Files / Models
+*.pt 
+*.pth
+*.h5
+*.hdf5
+*.pkl
+*.npz
+*.npy
+*.ckpt
+
 # C extensions
 *.so
 
