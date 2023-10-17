@@ -6,8 +6,9 @@ from mazes import *
 from helpers import *
 import argparse
 from algos.bc import BehaviorCloning, generateExpertDataset
+from algos.maxent import MaxEnt
 
-control_options = ["manual", "random", "policy", "expert", "bc"]
+control_options = ["manual", "random", "policy", "expert", "bc", "maxent"]
 randomization_options = ["g", "m", ""]
 maze_options = ["small", "big", "huge"]
 
@@ -19,7 +20,7 @@ def manualController(env, r=""):
 
 
 def bcController(env, r="", num_train_samples=500, num_test_samples=100):
-    train_dataset, test_dataset = generateExpertDataset(
+    train_dataset, test_dataset, _ = generateExpertDataset(
         env, num_train_samples=num_train_samples, num_test_samples=num_test_samples, r=r
     )
 
@@ -32,6 +33,13 @@ def bcController(env, r="", num_train_samples=500, num_test_samples=100):
         r=r,
     )
 
+def maxEntController(env, r="", num_train_samples=10, num_test_samples=10): 
+    # Run MaxEnt, then visualize the reward function
+    train_dataset, test_dataset, trajectories = generateExpertDataset(
+        env, num_train_samples=num_train_samples, num_test_samples=num_test_samples, r=r
+    )
+
+    MaxEnt(train_trajectories=trajectories, env=env)
 
 # Control the agent using random actions
 def randomController(env, r=""):
@@ -122,6 +130,8 @@ def main(args, maze_init):
         expertController(env, r=args.randomize, vis=vis)
     elif args.control == "bc":
         bcController(env, r=args.randomize)
+    elif args.control == "maxent": 
+        maxEntController(env, r=args.randomize)
     else:
         print("Invalid control type")
 

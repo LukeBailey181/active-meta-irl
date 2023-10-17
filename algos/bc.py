@@ -4,7 +4,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 import gym
-from maze_env import MutableMaze
+from maze_env import MutableMaze, Trajectory
 import matplotlib.pyplot as plt
 from goal_setters import random_goal
 from mazes import *
@@ -233,6 +233,8 @@ def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100
 
     policy = solve_maze(env.grid_string)
 
+    trajectories = []
+    cur_trajectory = Trajectory()
     for i in range(num_samples):
         if i % 10 == 0:
             print(f"Collecting sample {i} of {num_samples}")
@@ -243,8 +245,14 @@ def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100
 
         obs, reward, term, trunc, info = env.step(action)
 
+        cur_trajectory.add_transition(list(states[i].astype(int)), actions[i].astype(int)[0], obs)
+
         env.render()
         if term or trunc:
+
+            # Add trajectory
+            trajectories.append(cur_trajectory)
+            cur_trajectory = Trajectory()
             if r == "g":
                 env.set_goal(random_goal(env))
                 obs = env.reset()
@@ -267,7 +275,10 @@ def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100
     train_dataset = (states[0:num_train_samples], actions[0:num_train_samples])
     test_dataset = (states[num_train_samples:], actions[num_train_samples:])
 
+    # Only include train trajectories
+    trajectories = trajectories[:num_train_samples]
+
     if num_test_samples is None:
         test_dataset = None
 
-    return train_dataset, test_dataset
+    return train_dataset, test_dataset, trajectories
