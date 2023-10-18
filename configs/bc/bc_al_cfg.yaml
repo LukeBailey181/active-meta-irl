@@ -1,20 +1,20 @@
 base:
   config: "configs/bc/bc_exp_cfg.yaml"
-  control: "bc"
+  control: "bc-al"
   randomize: "g"
   maze: "big"
   size: None
   headless: True
   H: 100
-  num_expert_samples: 10
+  num_expert_samples: 20
 bc:
   num_train_samples: 100
-  num_test_samples: 25
+  num_test_samples: 100
   num_eval_runs: 50
   num_epochs: 5000
   batch_size: 32
   learning_rate: 0.001
   save_weights: True
-  eval_freq: 100
+  eval_freq: None
 eval:
-  num_eval_samples: 50
+  num_eval_samples: 100

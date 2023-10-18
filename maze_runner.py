@@ -7,8 +7,9 @@ from helpers import *
 import argparse
 from algos.bc import BehaviorCloning, generateExpertDataset
 import yaml
+from algos.active_bc import active_bc
 
-control_options = ["manual", "random", "policy", "expert", "bc"]
+control_options = ["manual", "random", "policy", "expert", "bc", "bc-al"]
 randomization_options = ["g", "m", ""]
 maze_options = ["small", "big", "huge"]
 
@@ -32,14 +33,20 @@ def bcController(env, config):
     r = config["base"]["randomize"]
 
     train_dataset, test_dataset = generateExpertDataset(
-        env, num_train_samples=num_train_samples, num_test_samples=num_test_samples, r=r
+        env,
+        num_train_samples=num_train_samples,
+        num_test_samples=num_test_samples,
+        r=r,
     )
+
+    print("Train dataset size: ", len(train_dataset))
 
     BehaviorCloning(
         train_dataset=train_dataset,
         test_dataset=test_dataset,
         env=env,
         config=config,
+        N=num_train_samples,
     )
 
 
@@ -53,6 +60,14 @@ def randomController(env, config):
         if term or trunc:
             env.set_goal(random_goal(env))
             env.reset()
+
+
+def bcAlController(env, config):
+    budget = config["base"]["num_expert_samples"]
+
+    active_bc(env=env, budget=budget, config=config)
+
+    print("Active BC finished!")
 
 
 # Control the agent using the optimal policy
@@ -88,6 +103,8 @@ def main(config, maze_init):
         expertController(env, config)
     elif config["base"]["control"] == "bc":
         bcController(env, config)
+    elif config["base"]["control"] == "bc-al":
+        bcAlController(env, config)
     else:
         print("Invalid control type")
 

@@ -8,6 +8,8 @@ from minigrid.core.mission import MissionSpace
 from minigrid.core.world_object import Door, Goal, Key, Wall
 from minigrid.minigrid_env import MiniGridEnv
 
+from itertools import chain
+
 
 # A maze class which allows the user to specify the maze layout
 class MutableMaze(MiniGridEnv):
@@ -168,3 +170,52 @@ class MutableMaze(MiniGridEnv):
         ]
 
         return obs_refined, reward, term, trunc, info
+
+
+class Trajectory:
+    """
+    A trajectory consisting of states, corresponding actions, and outcomes.
+
+    Args:
+        transitions: The transitions of this trajectory as an array of
+            tuples `(state_from, action, state_to)`. Note that `state_to` of
+            an entry should always be equal to `state_from` of the next
+            entry.
+    """
+
+    def __init__(self, transitions=None):
+        if transitions is None:
+            self._t = []
+        else:
+            self._t = transitions
+
+    def add_transition(self, state_from, action, state_to):
+        self._t.append((state_from, action, state_to))
+
+    def transitions(self):
+        """
+        The transitions of this trajectory.
+
+        Returns:
+            All transitions in this trajectory as array of tuples
+            `(state_from, action, state_to)`.
+        """
+        return self._t
+
+    def states(self):
+        """
+        The states visited in this trajectory.
+
+        Returns:
+            All states visited in this trajectory as iterator in the order
+            they are visited. If a state is being visited multiple times,
+            the iterator will return the state multiple times according to
+            when it is visited.
+        """
+        return map(lambda x: x[0], chain(self._t, [(self._t[-1][2], 0, 0)]))
+
+    def __repr__(self):
+        return "Trajectory({})".format(repr(self._t))
+
+    def __str__(self):
+        return "{}".format(self._t)

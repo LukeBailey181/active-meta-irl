@@ -44,6 +44,7 @@ tuple_to_key = {
     (0, 1): "right",
 }
 
+
 # Define the network
 class Net(nn.Module):
     def __init__(self, state_size):
