@@ -17,4 +17,4 @@ bc:
   save_weights: True
   eval_freq: None
 eval:
-  num_eval_samples: 100
+  num_eval_samples: 200

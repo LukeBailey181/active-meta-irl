@@ -15,7 +15,7 @@ from maze_env import MutableMaze
 from helpers import Net
 
 
-def generate_evaluation_set(config, seed=282):
+def generate_evaluation_set(config, seed=184):
     # Set the seed
     np.random.seed(seed)
 
@@ -47,10 +47,10 @@ def generate_evaluation_set(config, seed=282):
             goal = random_goal(maze)
             maze[maze == 3] = 0
             maze[goal[0], goal[1]] = 3
-            data[i] = maze
+            data[i] = np.copy(maze)
     elif r == "m":
         for i in range(num_eval_samples):
-            data[i] = generate_maze(N)
+            data[i] = np.copy(generate_maze(N))
 
     return data
 

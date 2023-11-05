@@ -54,7 +54,7 @@ def active_bc(env=None, budget=100, config=None):
     mazes = []
 
     env.set_goal(random_goal(env))
-    init_maze = env.grid_string.T
+    init_maze = np.copy(env.grid_string.T)
 
     mazes.append(init_maze)
 
@@ -113,7 +113,7 @@ def active_bc(env=None, budget=100, config=None):
             cur_maze = failed_configs[max_heuristic_idx]
         else:
             env.set_goal(random_goal(env))
-            cur_maze = env.grid_string.T
+            cur_maze = np.copy(env.grid_string.T)
 
         cur_traj = generateExpertTrajectory(
             env, r=config["base"]["randomize"], maze=cur_maze
@@ -134,7 +134,7 @@ def active_bc(env=None, budget=100, config=None):
             test_dataset=None,
             env=env,
             config=config,
-            net=net,
+            net=None,
             idx=(idx + 1),
         )
 
@@ -254,127 +254,25 @@ def BehaviorCloning(
             print("Loss is 0, stopping training")
             break
 
-        # Evaluation loop
-        with torch.no_grad():
-            if False:
-                if epoch % eval_freq == 0:
-                    logged_epochs.append(epoch)
-                    if test_dataset is None:
-                        print("No test dataset provided, skipping evaluation")
-                    else:
-                        epoch_test_lossses = []
-                        epoch_test_accs = []
-                        for state, action in test_loader:
-                            output = net(state)
-                            action = action.squeeze()
-                            loss = criterion(output, action)
-
-                            # If output isn't 2D, unsqueeze it
-                            if output.shape == (4,):
-                                output = output.unsqueeze(0)
-                                total = 1
-                            else:
-                                total = action.size(0)
-
-                            _, predicted = torch.max(output.data, 1)
-                            correct = (predicted == action).sum().item()
-                            acc = correct / total
-
-                            epoch_test_lossses.append(loss.item())
-                            epoch_test_accs.append(acc)
-
-                        test_losses.append(np.mean(epoch_test_lossses))
-                        test_accs.append(np.mean(epoch_test_accs))
-
-                    # Evaluate the policy
-                    if eval_freq is not None:
-                        batch_reward = []
-                        obs = env.reset()
-
-                        for i in range(num_eval_runs):
-                            reward_sum = 0
-                            while True:
-                                action = net(torch.tensor(obs).float()).argmax().item()
-                                obs, reward, term, trunc, info = env.step(int(action))
-                                env.render()
-                                reward_sum += reward
-                                if term or trunc:
-                                    break
-
-                            if r == "g":
-                                env.set_goal(random_goal(env))
-                                obs = env.reset()
-                            elif r == "m":
-                                obs = env.reset(
-                                    grid_string=generate_maze(env.board_size)
-                                )
-                            else:
-                                obs = env.reset()
-
-                            batch_reward.append(reward_sum)
-
-                        eval_reward.append(np.mean(batch_reward))
-
-    # Visualization
-    plt.figure()
-
-    # Label the whole figure
-    plt.suptitle(
-        f"{env.grid_string.shape[0]}x{env.grid_string.shape[0]} Grid, {train_dataset.__len__()} Expert Samples"
-    )
-    # Create three subplots for train/test loss, train/test accuracy, and evaluation reward
-    plt.subplot(3, 1, 1)
-    plt.plot(train_losses, "b-", label="Train Loss")
-    if test_dataset is not None:
-        plt.plot(logged_epochs, test_losses, "r-", label="Test Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.subplot(3, 1, 2)
-    plt.plot(train_accs, "b-", label="Train Accuracy")
-    if test_dataset is not None:
-        plt.plot(logged_epochs, test_accs, "r-", label="Test Accuracy")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    plt.subplot(3, 1, 3)
-    plt.plot(logged_epochs, eval_reward, "r-", label="Evaluation Reward")
-    plt.xlabel("Epoch")
-    plt.ylabel("Reward")
-    plt.legend()
-
     save_string = f"bc_{env.grid_string.shape[0]}x{env.grid_string.shape[0]}_r_{r}_samples_{train_dataset.__len__()}_batch_{batch_size}_epochs_{epochs}"
-
-    # Make save_string directory
-    if not os.path.exists(f"logs/bc/{save_string}"):
-        os.makedirs(f"logs/bc/{save_string}")
-
-    plt.savefig(f"logs/bc/{save_string}/" + save_string + f"_{idx}.png")
-
-    # Save the data as a numpy array
-    # np.savez(
-    #     f"logs/bc/{save_string}/" + save_string + f"_{idx}.npz",
-    #     train_losses=train_losses,
-    #     test_losses=test_losses,
-    #     train_accs=train_accs,
-    #     test_accs=test_accs,
-    #     eval_reward=eval_reward,
-    #     logged_epochs=logged_epochs,
-    # )
 
     failed_configs = []
 
     obs = env.reset()
 
     if r == "g":
-        env.set_goal(random_goal(env))
+        maze_bin = (env.grid_string == 1) + (env.grid_string == 2)
+        # All possible goals
+        goals = np.argwhere(maze_bin == 0)
+        goal_idx = 1
+        env.set_goal(goals[0])
         obs = env.reset()
     elif r == "m":
         obs = env.reset(grid_string=generate_maze(env.board_size))
     else:
         obs = env.reset()
 
-    for i in range(num_eval_runs):
+    for i in range(len(goals) - 1):
         reward_sum = 0
         while True:
             action = net(torch.tensor(obs).float()).argmax().item()
@@ -382,11 +280,12 @@ def BehaviorCloning(
             env.render()
             if term or trunc:
                 if reward == 0:
-                    failed_configs.append(env.grid_string)
+                    failed_configs.append(np.copy(env.grid_string.T))
                 break
 
         if r == "g":
-            env.set_goal(random_goal(env))
+            env.set_goal(goals[goal_idx])
+            goal_idx += 1
             obs = env.reset()
         elif r == "m":
             obs = env.reset(grid_string=generate_maze(env.board_size))
@@ -394,8 +293,6 @@ def BehaviorCloning(
             obs = env.reset()
 
     return idx, net, failed_configs
-
-    # plt.show()
 
 
 def generateExpertTrajectory(env, r="", maze=None):

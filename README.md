@@ -13,19 +13,21 @@ conda activate metairl
 2. Install dependencies
 
 ```
-pip install minigrid gym pygame matplotlib numpy
+pip install minigrid gym pygame matplotlib numpy torch
 ```
 
 ## Intructions for Use
 
 #### Running Experiments
 
-```maze_runner``` takes several arguments which specify the experiment:
+```maze_runner``` takes several arguments which specify the experiment. These can either be specified by a config file or in the command line. Flags include:
 
-* ```--control (-c)```: The method of control, from ['expert', 'manual', 'random', 'policy']
+* ```--control (-c)```: The method of control, from ['expert', 'manual', 'random', 'bc', 'bc-al']
 * ```--randomize (-r)```: The degree of randomization, from ['m', 'g', ''] for randomized maze, goal, and none.
-* ```---size (-s)```: If maze is randomized, the size of the generated maze.
-* ```---maze (-m)```: If goal or none are randomized, the default maze configuration.
+* ```--size (-s)```: If maze is randomized, the size of the generated maze.
+* ```--maze (-m)```: If goal or none are randomized, the default maze configuration.
+* ```--config (-y)```: The experiment configuration file, as a path to a yaml. Any additional arguments override yaml configs.
+* ```--num_expert_samples (-N)```: For IRL/IL experiments, the number of trajectories sampled from the expert. This parameter helps with scripting experiments.
 
 
 So, for example, to show the expert policy run on a random maze of size 20, we may run
