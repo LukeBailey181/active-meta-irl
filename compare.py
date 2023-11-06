@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-bc_name = "logs/eval/bc/bc_eval_diff_seed.csv"
-bc_al_name = "logs/eval/bc/bc_al_eval_diff_seed.csv"
+bc_name = "logs/eval/bc/bc_cnn_eval.csv"
+bc_al_name = "logs/eval/bc/bc_cnn_al_eval.csv"
 
 # Read the csv as a numpy array
 df_bc = np.genfromtxt(bc_name, delimiter=",")
@@ -40,5 +40,5 @@ plt.legend()
 plt.title("Evaluation Reward vs. Number of Expert Samples")
 plt.xlabel("Number of Expert Samples")
 plt.ylabel("Reward")
-plt.savefig(f"{log_dir}/reward_fixed_diff_seed.png")
+plt.savefig(f"{log_dir}/reward_cnn_al.png")
 plt.show()
