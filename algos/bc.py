@@ -10,7 +10,7 @@ from goal_setters import random_goal
 from mazes import *
 import os
 import yaml
-from helpers import Net
+from helpers import Net, ConvNet, ConvNetMC
 from maze_env import Trajectory
 
 
@@ -28,10 +28,32 @@ def BehaviorCloning(
     save_weights = config["bc"]["save_weights"]
     eval_freq = config["bc"]["eval_freq"]
     num_eval_runs = config["bc"]["num_eval_runs"]
+    network = config["base"]["network"]
+    save_dir = config["base"]["save_dir"]
 
-    state_size = train_dataset[0][0].shape[0]
+    if torch.cuda.is_available():
+        print("------------------Training on GPU------------------")
+        device = torch.device("cuda:0")
+    else:
+        print(
+            "------------------No device available, training on CPU------------------"
+        )
+        device = torch.device("cpu")
 
-    net = Net(state_size)
+    if save_dir is None:
+        save_dir = "bc"
+
+    if network == "fc":
+        state_size = train_dataset[0][0].shape[0]
+        net = Net(state_size)
+    elif network == "cnn":
+        state_size = train_dataset[0][0].shape[0]
+        net = ConvNet(state_size)
+    elif network == "mc_cnn":
+        state_size = train_dataset[0][0].shape[1]
+        net = ConvNetMC(state_size)
+
+    net.to(device)
 
     # Turn the train dataset from an Nx|S|x4 array into a torch dataset
     train_dataset = torch.utils.data.TensorDataset(
@@ -76,6 +98,11 @@ def BehaviorCloning(
         epoch_train_accs = []
         for i, (state, action) in enumerate(train_loader):
             optimizer.zero_grad()
+
+            if torch.cuda.is_available():
+                state = state.cuda()
+                action = action.cuda()
+
             output = net(state)
             if state.shape[0] != 1:
                 action = action.squeeze()
@@ -113,6 +140,9 @@ def BehaviorCloning(
                         epoch_test_lossses = []
                         epoch_test_accs = []
                         for state, action in test_loader:
+                            if torch.cuda.is_available():
+                                state = state.cuda()
+                                action = action.cuda()
                             output = net(state)
                             if state.shape[0] != 1:
                                 action = action.squeeze()
@@ -144,7 +174,15 @@ def BehaviorCloning(
                         for i in range(num_eval_runs):
                             reward_sum = 0
                             while True:
-                                action = net(torch.tensor(obs).float()).argmax().item()
+                                if torch.cuda.is_available():
+                                    obs = torch.tensor(obs).float().unsqueeze(0).cuda()
+                                    action = net(obs).argmax().item()
+                                else:
+                                    action = (
+                                        net(torch.tensor(obs).float().unsqueeze(0))
+                                        .argmax()
+                                        .item()
+                                    )
                                 obs, reward, term, trunc, info = env.step(int(action))
                                 env.render()
                                 reward_sum += reward
@@ -196,18 +234,20 @@ def BehaviorCloning(
     save_string = f"bc_{env.grid_string.shape[0]}x{env.grid_string.shape[0]}_r_{r}_samples_{N}_batch_{batch_size}_epochs_{epochs}"
 
     # Make save_string directory
-    if not os.path.exists(f"logs/bc/{save_string}"):
-        os.makedirs(f"logs/bc/{save_string}")
+    if not os.path.exists(f"logs/{save_dir}/{save_string}"):
+        os.makedirs(f"logs/{save_dir}/{save_string}")
 
     # Save the model
     if save_weights:
-        torch.save(net.state_dict(), f"logs/bc/{save_string}/" + save_string + ".pt")
+        torch.save(
+            net.state_dict(), f"logs/{save_dir}/{save_string}/" + save_string + ".pt"
+        )
 
-    plt.savefig(f"logs/bc/{save_string}/" + save_string + ".png")
+    plt.savefig(f"logs/{save_dir}/{save_string}/" + save_string + ".png")
 
     # Save the data as a numpy array
     np.savez(
-        f"logs/bc/{save_string}/" + save_string + ".npz",
+        f"logs/{save_dir}/{save_string}/" + save_string + ".npz",
         train_losses=train_losses,
         test_losses=test_losses,
         train_accs=train_accs,
@@ -258,86 +298,31 @@ def generateExpertDataset(env, r="", num_train_samples=50, num_test_samples=10):
     return train_dataset, test_dataset
 
 
-def _generateExpertDataset_old(env, r="", num_train_samples=500, num_test_samples=100):
-    num_samples = (
-        num_train_samples + num_test_samples
-        if num_test_samples is not None
-        else num_train_samples
-    )
-    # Collect expert data
-    states = np.zeros((num_samples, 4))
-    actions = np.zeros((num_samples, 1))
-
-    if r == "g":
-        env.set_goal(random_goal(env))
-        obs = env.reset()
-    elif r == "m":
-        obs = env.reset(grid_string=generate_maze(env.board_size))
-    else:
-        obs = env.reset()
-
-    policy = solve_maze(env.grid_string)
-
-    for i in range(num_samples):
-        if i % 10 == 0:
-            print(f"Collecting sample {i} of {num_samples}")
-        action = policy[obs[0], obs[1]]
-
-        states[i] = obs
-        actions[i] = action
-
-        obs, reward, term, trunc, info = env.step(action)
-
-        env.render()
-        if term or trunc:
-            if r == "g":
-                env.set_goal(random_goal(env))
-                obs = env.reset()
-            elif r == "m":
-                obs = env.reset(grid_string=generate_maze(env.board_size))
-            else:
-                obs = env.reset()
-
-            policy = solve_maze(env.grid_string)
-
-            # Check that the policy is valid
-            try:
-                assert np.all(policy != -1)
-            except:
-                print("INVALID POLICY !!!!! THIS SHOULD NEVER HAPPEN")
-                print(policy)
-                print(env.grid_string)
-                break
-
-    train_dataset = (states[0:num_train_samples], actions[0:num_train_samples])
-    test_dataset = (states[num_train_samples:], actions[num_train_samples:])
-
-    if num_test_samples is None:
-        test_dataset = None
-
-    return train_dataset, test_dataset
-
-
 def generateExpertTrajectory(env, r="", maze=None):
     if maze is not None:
         obs = env.reset(grid_string=maze)
+        obs_s = env.get_state_obs()
     elif r == "g":
         env.set_goal(random_goal(env))
         obs = env.reset()
+        obs_s = env.get_state_obs()
     elif r == "m":
         obs = env.reset(grid_string=generate_maze(env.board_size))
+        obs_s = env.get_state_obs()
     else:
         obs = env.reset()
+        obs_s = env.get_state_obs()
 
     policy = solve_maze(env.grid_string)
 
     cur_trajectory = Trajectory()
     while True:
-        action = policy[obs[0], obs[1]]
+        action = policy[obs_s[0], obs_s[1]]
 
         obs_old = obs
 
         obs, reward, term, trunc, info = env.step(action)
+        obs_s = env.get_state_obs()
 
         cur_trajectory.add_transition(list(obs_old), action, obs)
 

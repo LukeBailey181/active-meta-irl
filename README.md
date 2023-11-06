@@ -16,6 +16,30 @@ conda activate metairl
 pip install minigrid gym pygame matplotlib numpy torch
 ```
 
+## Running on GPU
+
+If instead you want to run on GPU, we need to be a bit more fiddly to make sure versions work out.
+
+1. Create a conda environment with Python 3.8
+
+```
+conda create -n goalirl_gpu python=3.8
+
+conda activate goalirl_gpu
+```
+
+2. Install the necessary pytorch version for your CUDA version [find command here](https://pytorch.org/get-started/locally/)
+```
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
+
+3. Install remaining dependencies
+
+```
+pip install minigrid gym pygame matplotlib numpy
+```
+
+
 ## Intructions for Use
 
 #### Running Experiments

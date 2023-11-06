@@ -1,0 +1,22 @@
+base:
+  config: "configs/bc/bc_cnn_cfg.yaml"
+  control: "bc"
+  randomize: "m"
+  maze: None
+  size: 6
+  headless: True
+  H: 100
+  num_expert_samples: 500
+  network: "cnn"
+  save_dir: "bc_cnn_boardsize"
+bc:
+  num_train_samples: 10
+  num_test_samples: 50
+  num_eval_runs: 50
+  num_epochs: 5000
+  batch_size: 256
+  learning_rate: 0.001
+  save_weights: True
+  eval_freq: 100
+eval:
+  num_eval_samples: 200

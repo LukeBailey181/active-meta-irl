@@ -12,14 +12,16 @@ import os
 import yaml
 from goal_setters import random_goal
 from maze_env import MutableMaze
-from helpers import Net
+from helpers import Net, ConvNet
+
+eval_types = ["samples", "size"]
 
 
 def generate_evaluation_set(config, seed=184):
     # Set the seed
     np.random.seed(seed)
 
-    if config["base"]["maze"] is not None:
+    if "maze" in config["base"].keys():
         maze_name = config["base"]["maze"]
         if maze_name == "big":
             maze = big_maze
@@ -32,9 +34,10 @@ def generate_evaluation_set(config, seed=184):
     else:
         if config["base"]["size"] is not None:
             maze_size = config["base"]["size"]
-            maze = generate_maze(maze_size, maze_size)
+            print("Generating maze")
+            maze = generate_maze(maze_size)
         else:
-            maze = generate_maze(10, 10)
+            maze = generate_maze(10)
 
     N = maze.shape[0]
     r = config["base"]["randomize"]
@@ -55,11 +58,7 @@ def generate_evaluation_set(config, seed=184):
     return data
 
 
-def evaluate(config, save_string, log_file):
-    # Generate the evaluation set
-    data = generate_evaluation_set(config)
-
-    # Split along underscores
+def split_by_samples(config, save_string):
     save_string_split = save_string.split("_")
 
     # Find the index of "samples"
@@ -72,13 +71,57 @@ def evaluate(config, save_string, log_file):
     real_save_string = slash_split[-1]
 
     model_path = (
+        f"logs/{config['base']['save_dir']}/{real_save_string}/{real_save_string}.pt"
+    )
+    return num_expert_samples, model_path
+
+
+def split_by_size(config, save_string):
+    save_string_split = save_string.split("_")
+
+    # Find the index of "samples"
+    print(save_string)
+    print(save_string_split)
+    boardxboard = save_string_split[1]
+    # Take boardxboard and split by x
+    boardxboard_split = boardxboard.split("x")
+    maze_size = int(boardxboard_split[0])
+
+    slash_split = save_string.split("/")
+    real_save_string = slash_split[-1]
+
+    model_path = (
         f"logs/{config['base']['control']}/{real_save_string}/{real_save_string}.pt"
     )
+    return maze_size, model_path
+
+
+def evaluate(config, save_string, log_file, splitby="samples"):
+    # Generate the evaluation set
+    data = generate_evaluation_set(config)
+
+    # Split along underscores
+    save_string_split = save_string.split("_")
+
+    # Find the index of "samples"
+    print(save_string)
+    print(save_string_split)
+
+    if splitby == "samples":
+        x_axis, model_path = split_by_samples(config, save_string)
+    elif splitby == "size":
+        x_axis, model_path = split_by_size(config, save_string)
+    else:
+        raise ValueError("Invalid split-by value.")
 
     # Load the model
     state_dict = torch.load(model_path)
 
-    model = Net(4)
+    if config["base"]["network"] == "fc":
+        model = Net(4)
+    elif config["base"]["network"] == "cnn":
+        model = ConvNet(config["base"]["size"])
+
     model.load_state_dict(state_dict)
 
     # Set the model to evaluation mode
@@ -92,6 +135,7 @@ def evaluate(config, save_string, log_file):
             board_size=data[i][0].shape[0],
             init_grid_string=data[i],
             H=100,
+            network=config["base"]["network"],
             render_mode="rgb_array",
         )
         obs = env.reset(data[i])
@@ -118,8 +162,8 @@ def evaluate(config, save_string, log_file):
 
     # Append the (num_expert_samples, reward) pair to the log file csv
     with open(log_file, "a") as f:
-        print(f"Writing {num_expert_samples}, {reward} to {log_file}")
-        f.write(f"{num_expert_samples}, {reward}\n")
+        print(f"Writing {x_axis}, {reward} to {log_file}")
+        f.write(f"{x_axis}, {reward}\n")
 
 
 if __name__ == "__main__":
@@ -146,6 +190,14 @@ if __name__ == "__main__":
         help="The name of the log file to save to.",
     )
 
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="samples",
+        choices=eval_types,
+        help="The type of split to use for evaluation.",
+    )
+
     args = parser.parse_args()
 
     if args.log_name is None:
@@ -155,8 +207,8 @@ if __name__ == "__main__":
     if not os.path.exists(args.log_name):
         # If it doesn't, create it and write the header
         with open(args.log_name, "w") as f:
-            f.write("num_expert_samples, reward\n")
+            f.write(f"{args.split}, reward\n")
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.FullLoader)
 
-    evaluate(config, args.save_string, args.log_name)
+    evaluate(config, args.save_string, args.log_name, splitby=args.split)

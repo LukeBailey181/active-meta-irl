@@ -18,12 +18,15 @@ class MutableMaze(MiniGridEnv):
         board_size=10,
         init_grid_string=None,
         H=None,
+        network="fc",
         **kwargs,
     ):
         # Used to track agent position in the superclass
         self.agent_start_pos = (1, 1)
         self.agent_start_dir = 0
         self.step_count = 0
+
+        self.network = network
 
         # Size of our board (NxN)
         self.board_size = board_size
@@ -134,6 +137,29 @@ class MutableMaze(MiniGridEnv):
         else:
             self.place_agent()
 
+    def get_grid_obs(self):
+        maze = np.copy(self.grid_string.T)
+        maze[maze == 2] = 0
+        maze[self.agent_pos[0], self.agent_pos[1]] = 2
+        return maze
+
+    def get_multichannel_grid_obs(self):
+        maze = np.zeros((3, self.board_size, self.board_size), dtype=int)
+        maze[0] = self.grid_string.T == 1
+        maze[1] = self.grid_string.T == 2
+        maze[2] = self.grid_string.T == 3
+
+        return maze
+
+    def get_state_obs(self):
+        obs_refined = [
+            self.agent_pos[0],
+            self.agent_pos[1],
+            self.goal_pos[0],
+            self.goal_pos[1],
+        ]
+        return obs_refined
+
     # Reset the environment
     def reset(
         self,
@@ -146,12 +172,20 @@ class MutableMaze(MiniGridEnv):
 
         self.goal_pos = np.argwhere(self.grid_string == 3)[0]
 
-        return [
-            self.agent_pos[0],
-            self.agent_pos[1],
-            self.goal_pos[0],
-            self.goal_pos[1],
-        ]
+        if self.network == "fc":
+            return [
+                self.agent_pos[0],
+                self.agent_pos[1],
+                self.goal_pos[0],
+                self.goal_pos[1],
+            ]
+        elif self.network == "cnn":
+            return self.get_grid_obs()
+        elif self.network == "mc_cnn":
+            return self.get_multichannel_grid_obs()
+        else:
+            print("Invalid network type")
+            return None
 
     # Step the environment
     def step(self, action):
@@ -162,12 +196,21 @@ class MutableMaze(MiniGridEnv):
 
         reward = int(reward != 0)
 
-        obs_refined = [
-            self.agent_pos[0],
-            self.agent_pos[1],
-            self.goal_pos[0],
-            self.goal_pos[1],
-        ]
+        if self.network == "fc":
+            obs_refined = [
+                self.agent_pos[0],
+                self.agent_pos[1],
+                self.goal_pos[0],
+                self.goal_pos[1],
+            ]
+
+        elif self.network == "cnn":
+            obs_refined = self.get_grid_obs()
+        elif self.network == "mc_cnn":
+            obs_refined = self.get_multichannel_grid_obs()
+        else:
+            print("Invalid network type")
+            return None
 
         return obs_refined, reward, term, trunc, info
 

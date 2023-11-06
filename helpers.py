@@ -60,6 +60,44 @@ class Net(nn.Module):
         return x
 
 
+class ConvNet(nn.Module):
+    def __init__(self, state_size):
+        self.fc_size = 32 * state_size**2
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 16, 3, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, 3, padding=1)
+        self.fc1 = nn.Linear(self.fc_size, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 4)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x.unsqueeze(1)))
+        x = F.relu(self.conv2(x))
+        x = x.view(x.shape[0], -1)
+        x = F.relu(self.fc1(x))
+        x = self.fc3(x)
+        return x
+
+
+class ConvNetMC(nn.Module):
+    def __init__(self, state_size):
+        self.fc_size = 32 * state_size**2
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 16, 3, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, 3, padding=1)
+        self.fc1 = nn.Linear(self.fc_size, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 4)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = x.view(x.shape[0], -1)
+        x = F.relu(self.fc1(x))
+        x = self.fc3(x)
+        return x
+
+
 # Returns the transition matrix for a given maze
 #     T[i * board_size + j][action][k * board_size + l] = P((k,l) | (i,j), action)
 def get_transition_matrix(grid_string):

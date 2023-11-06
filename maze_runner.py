@@ -26,7 +26,7 @@ def bcController(env, config):
     elif config["base"]["num_train_samples"] is not None:
         num_train_samples = config["base"]["num_train_samples"]
     else:
-        num_train_samples = 500
+        num_train_samples = 50
 
     num_test_samples = config["bc"]["num_test_samples"]
 
@@ -90,6 +90,7 @@ def main(config, maze_init):
         board_size=maze_init.shape[0],
         init_grid_string=maze_init,
         H=100,
+        network=config["base"]["network"],
         render_mode=render_mode,
     )
 
@@ -129,6 +130,8 @@ def update_config(config, args):
         config["base"]["size"] = None
     if config["base"]["maze"] is None and args.size is None:
         config["base"]["maze"] = "big"
+    if config["base"]["network"] is None:
+        config["base"]["network"] = "fc"
 
     return config
 
@@ -145,6 +148,7 @@ def create_config(args):
     config["base"]["config"] = args.config
     config["base"]["headless"] = False
     config["base"]["H"] = 100
+    config["base"]["network"] = "fc"
 
     # If any of the options aren't in args, add default values to config
     if args.control is None:
