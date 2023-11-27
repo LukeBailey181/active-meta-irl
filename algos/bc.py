@@ -149,7 +149,7 @@ def BehaviorCloning(
                             while True:
                                 action = net(torch.tensor(obs).float()).argmax().item()
                                 obs, reward, term, trunc, info = env.step(int(action))
-                                env.render()
+                                #env.render()
                                 reward_sum += reward
                                 if term or trunc:
                                     break
@@ -213,7 +213,16 @@ def BehaviorCloning(
     plt.show()
 
 
-def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100):
+def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100, use_state_index=False):
+    """Generate a dataset of expert trajectories
+    
+    Args:
+        env (MutableMaze): The environment to collect trajectories in
+        r (str): The type of randomization to use. Can be "g" for goal randomization, "m" for maze randomization, or "" for no randomization. Defaults to "".
+        num_train_samples (int, optional): The number of samples to collect for training. Defaults to 500.
+        num_test_samples (int, optional): The number of samples to collect for testing. Defaults to 100.
+        use_state_index (bool, optional): Whether to use the state index instead of the state vector. Defaults to False.
+    """
     num_samples = (
         num_train_samples + num_test_samples
         if num_test_samples is not None
@@ -245,9 +254,19 @@ def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100
 
         obs, reward, term, trunc, info = env.step(action)
 
-        cur_trajectory.add_transition(list(states[i].astype(int)), actions[i].astype(int)[0], obs)
+        if use_state_index:
+            state_from = env.state_to_index(list(states[i].astype(int)))
+            action = actions[i].astype(int)[0]
+            state_to = env.state_to_index(obs)
+        else:
+            state_from = list(states[i].astype(int))
+            action = actions[i].astype(int)[0]
+            state_to = obs
 
-        env.render()
+        #cur_trajectory.add_transition(list(states[i].astype(int)), actions[i].astype(int)[0], obs)
+        cur_trajectory.add_transition(state_from, action, state_to)
+
+        #env.render()
         if term or trunc:
 
             # Add trajectory
@@ -274,9 +293,6 @@ def generateExpertDataset(env, r="", num_train_samples=500, num_test_samples=100
 
     train_dataset = (states[0:num_train_samples], actions[0:num_train_samples])
     test_dataset = (states[num_train_samples:], actions[num_train_samples:])
-
-    # Only include train trajectories
-    trajectories = trajectories[:num_train_samples]
 
     if num_test_samples is None:
         test_dataset = None

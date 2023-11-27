@@ -40,8 +40,14 @@ class ManualControl:
                     self.key_handler(event)
 
     def step(self, action: Actions):
-        _, reward, terminated, truncated, _ = self.env.step(action)
+
+
+        ob, reward, terminated, truncated, _ = self.env.step(action)
         print(f"step={self.env.step_count}, reward={reward:.2f}")
+
+        print("DEBUG")
+        print(f"Took action {action}")
+        print(f"Now in state {ob}")
 
         if terminated:
             print("terminated!")

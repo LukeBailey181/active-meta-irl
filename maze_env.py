@@ -9,6 +9,8 @@ from minigrid.core.world_object import Door, Goal, Key, Wall
 from minigrid.minigrid_env import MiniGridEnv
 from itertools import chain
 from helpers import get_transition_matrix, tuple_to_key, key_to_action
+import time
+from tqdm import tqdm
 
 
 # A maze class which allows the user to specify the maze layout
@@ -44,9 +46,10 @@ class MutableMaze(MiniGridEnv):
 
         # Transition
         #self.T_matrix = get_transition_matrix(self.grid_string)
-        print("Forming transition")
+        #print("Forming transition")
+
         self.T_matrix = self.get_t_matrix()
-        print("Transition formed")
+        #print("Transition formed")
 
         # Initialize the superclass
         super().__init__(
@@ -185,6 +188,9 @@ class MutableMaze(MiniGridEnv):
         # For now fixing this to (x, y, x_goal, y_goal)
         return self.board_size ** 4
 
+    def get_num_actions(self):
+        return 4
+
 
     def get_features(self): 
         """Return matrix of feature values"""
@@ -222,33 +228,29 @@ class MutableMaze(MiniGridEnv):
         x_from,y_from,_,_ = state_from
         x_to,y_to,_,_ = state_to
 
-        if abs(x_from - x_to) + abs(y_from - y_to) != 1:
+        grid_string = self.grid_string.T
+        from_void = grid_string[x_from, y_from] == 0 or grid_string[x_from, y_from] == 2
+        to_void = grid_string[x_to, y_to] == 0 or grid_string[x_to, y_to] == 2
+        to_goal = grid_string[x_to, y_to] == 3
+
+        change_to_action = {
+            (0, -1): 3,
+            (0, 1): 1,
+            (1, 0): 0,
+            (-1, 0): 2
+        }
+
+        change = (x_to - x_from, y_to - y_from)
+        if change not in change_to_action: 
+            # Not a move by 1 square
             return 0
 
-        from_wall = self.grid_string[x_from, y_from] == 1
-        to_wall = self.grid_string[x_to, y_to] == 1
-        from_void = self.grid_string[x_from, y_from] == 0 or self.grid_string[x_from, y_from] == 2
-        to_void = self.grid_string[x_to, y_to] == 0 or self.grid_string[x_to, y_to] == 2
-        from_goal = self.grid_string[x_from, y_from] == 3 
-        to_goal = self.grid_string[x_to, y_to] == 3
-
-        if x_from == x_to and y_from == y_to: 
-            # Can only do this if in wall or goal 
-            if from_wall or from_goal: 
-                return 1 
-            else: 
+        if change_to_action[change] == action:
+            # Might be valid
+            if (from_void and to_void) or (from_void and to_goal): 
+                # Can do this if moving 1 square and action correct
                 return 1
-            
-        if to_wall: 
-            # Can't move into walls
-            return 0 
-
-        if from_void and to_void: 
-            # Can do this if moving 1 square and action correct
-            change = (x_to - x_from, y_to - y_from)
-            if key_to_action[tuple_to_key[change]] == action:
-                return 1
-            return 0
+        return 0
 
     def T_func_index(self, index_from, action, index_to): 
 
@@ -256,9 +258,6 @@ class MutableMaze(MiniGridEnv):
         state_to = self.index_to_state(index_to)
 
         return self.T_func(state_from, action, state_to)
-
-    def get_num_actions(self):
-        return 4
     
     def get_t_matrix(self): 
 
@@ -271,10 +270,73 @@ class MutableMaze(MiniGridEnv):
         n_actions = self.get_num_actions()
         T = np.zeros((n_states, n_actions, n_states))
 
+        action_to_change = {
+            3: (0, -1),
+            1: (0, 1),
+            0: (1, 0),
+            2: (-1, 0)
+        }
+
+        grid_string = self.grid_string.T
+        print("Constructing T matrix")
+        for state_from in tqdm(range(n_states)): 
+            (x_from,y_from,x_goal,y_goal) = self.index_to_state(state_from)
+
+            from_void_or_start = grid_string[x_from, y_from] == 0 or grid_string[x_from, y_from] == 2
+
+            # For each action this should be distribution over next states 
+            for action in range(n_actions): 
+                # If the block is wall, or goal, then any action keeps you here 
+                if not from_void_or_start:
+                    T[state_from, action, state_from] = 1
+                else: 
+                    # Get the valid change, if it exists
+                    x_dif, y_dif = action_to_change[action]
+                    x_to = x_from + x_dif
+                    y_to = y_from + y_dif
+                    # Check if this is a valid state, else you will state in same state 
+                    to_type = grid_string[x_to, y_to]
+                    if x_to < 0 or x_to >= self.board_size or y_to < 0 or y_to >= self.board_size:
+                        # Outside of grid, stay in same state
+                        T[state_from, action, state_from] = 1
+                    elif to_type == 1:
+                        # Cannot move to wall 
+                        T[state_from, action, state_from] = 1
+                    else: 
+                        # Moving to void, start, or goal
+                        state_to = self.state_to_index((x_to, y_to, x_goal, y_goal))
+                        T[state_from, action, state_to] = 1
+
+        # Test transition is valid
         for state_from in range(n_states): 
-            for state_to in range(n_states): 
-                for action in range(4):
-                    T[state_from, action, state_to] = self.T_func_index(state_from, action, state_to)
+            for action in range(n_actions): 
+                assert np.sum(T[state_from, action, :]) == 1
+
+        return T
+
+        #print("Constructing T matrix")
+        #for state_from in tqdm(range(n_states)): 
+
+        #    # Loop over neighboring states
+        #    (x,y,x_goal,y_goal) = self.index_to_state(state_from)
+
+        #    # Neighbors are (x+1,y), (x-1,y), (x,y+1), (x,y-1)
+        #    for change in [(1,0), (-1,0), (0,1), (0,-1)]:
+        #        x_to = x + change[0]
+        #        y_to = y + change[1]
+
+        #        # Check if this is a valid state
+        #        if x_to < 0 or x_to >= self.board_size or y_to < 0 or y_to >= self.board_size:
+        #            continue
+
+        #        state_to = self.state_to_index((x_to, y_to, x_goal, y_goal))
+
+        #        # Loop over actions
+        #        for action in range(n_actions): 
+        #            tmp = self.T_func_index(state_from, action, state_to)
+        #            if tmp is None: 
+        #                breakpoint()
+        #            T[state_from, action, state_to] = tmp 
 
         return T
 

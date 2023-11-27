@@ -33,10 +33,10 @@ def bcController(env, r="", num_train_samples=500, num_test_samples=100):
         r=r,
     )
 
-def maxEntController(env, r="", num_train_samples=10, num_test_samples=10): 
+def maxEntController(env, r="", num_train_samples=100, num_test_samples=100): 
     # Run MaxEnt, then visualize the reward function
     train_dataset, test_dataset, trajectories = generateExpertDataset(
-        env, num_train_samples=num_train_samples, num_test_samples=num_test_samples, r=r
+        env, num_train_samples=num_train_samples, num_test_samples=num_test_samples, r=r, use_state_index=True
     )
 
     MaxEnt(train_trajectories=trajectories, env=env)

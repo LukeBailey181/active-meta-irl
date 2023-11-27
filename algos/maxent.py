@@ -10,7 +10,7 @@ from goal_setters import random_goal
 from itertools import product               # Cartesian product for iterators
 from mazes import *
 from helpers import ExpSga, Constant, linear_decay
-
+from .maxent_helpers import irl
 
 # Maxent IRL implementation taken from 
 # Harvard CS282 fall 2023 Homework 2
@@ -179,7 +179,27 @@ def MaxEnt(
     N = env.board_size
     terminal = [env.state_to_index((x, y, x, y)) for x in range(N) for y in range(N)]
 
-    reward_maxent = maxent_irl(features, terminal, train_trajectories, optim, init, env)
+    # Rearrange order of T
+    p_transition = env.T_matrix.transpose(0, 2, 1)
+
+    #reward_maxent = irl(p_transition, features, terminal, train_trajectories, optim, init, eps=1e-4, eps_esvf=1e-5)
+    reward_maxent = irl(p_transition, features, terminal, train_trajectories, optim, init, eps=0.5e-3, eps_esvf=1e-5)
+    #reward_maxent = irl(p_transition, features, terminal, train_trajectories, optim, init, eps=1e-1, eps_esvf=1e-5)
+
+    # Convert to numpy array 
+    rewards = np.zeros((N, N, N, N))
+    for i in range(len(reward_maxent)): 
+        x, y, x_to, y_to = env.index_to_state(i)
+        rewards[x, y, x_to, y_to] = reward_maxent[i]
+
+    # Visualize the reward function
+    for i in range(N):
+        for j in range(N):
+            print(f"Goal is {(i, j)}")
+            img = plt.imshow(rewards[:, :, i, j], aspect="auto")
+            plt.scatter(j, i, c='red', marker='x')  # Make sure to reverse the coordinates for (j, i) in the scatter plot
+            plt.colorbar(img) 
+            plt.show()
     
     
 
