@@ -300,6 +300,7 @@ def generateExpertDataset(env, r="", num_train_samples=50, num_test_samples=10):
 
 def generateExpertTrajectory(env, r="", maze=None):
     if maze is not None:
+        print(maze)
         obs = env.reset(grid_string=maze)
         obs_s = env.get_state_obs()
     elif r == "g":
