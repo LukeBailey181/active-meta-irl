@@ -1,0 +1,22 @@
+base:
+  config: "configs/fairl/fairl_cfg.yaml"
+  control: "fairl"
+  randomize: "m"
+  size: 10
+  maze: "big"
+  headless: True
+  H: 70
+  num_expert_samples: 1000
+  network: "cnn"
+  save_dir: "fairl_fc_m"
+fairl:
+  num_train_samples: 100
+  num_test_samples: 20
+  num_eval_runs: 20
+  num_epochs: 100
+  batch_size: 1024
+  learning_rate: 0.001
+  save_weights: True
+  eval_freq: 50
+eval:
+  num_eval_samples: 50

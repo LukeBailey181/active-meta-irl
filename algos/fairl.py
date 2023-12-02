@@ -17,7 +17,7 @@ from helpers import (
     visualize_reward,
     get_transition_states,
     get_transition_deltas,
-    maze_map
+    maze_map,
 )
 from maze_env import Trajectory
 
@@ -36,7 +36,7 @@ class ValNet(nn.Module):
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
         x = self.fc4(x)
-        
+
         output = torch.sigmoid(x) * 10
         return output
 
@@ -52,12 +52,15 @@ class ValCNN(nn.Module):
         self.fc3 = nn.Linear(64, 1)
 
     def forward(self, x):
-        x = F.relu(self.conv1(x.unsqueeze(1)))
+        x = F.relu(self.conv1(x.unsqueeze(0)))
         x = F.relu(self.conv2(x))
-        x = x.view(x.shape[0], -1)
+        x = x.view(1, -1)
+        # print(f"FC_size: {self.fc_size}")
+        # print(f"Input size: {x.shape}")
         x = F.relu(self.fc1(x))
         x = self.fc3(x)
-        return x
+        output = torch.sigmoid(x) * 10
+        return output
 
 
 # Calculates the negative log-likelihood of the correct actions under the network
@@ -75,17 +78,14 @@ class LikelihoodLoss(nn.Module):
 
         # Caclulate the log-likelihood of each correct action
         for i, a in enumerate(actions):
-            if states[i][0] == 8. and states[i][1] == 6. and False:
-                print("\n\n Running eval")
-                self.net.readout = True
+            # if states[i][0] == 8. and states[i][1] == 6. and False:
+            #     print("\n\n Running eval")
+            #     self.net.readout = True
             likelihood -= self.b * self.net.Q(states[i], int(a)) - torch.log(
                 torch.sum(torch.exp(self.b * self.net.Q_vector(states[i])))
             )
 
-
             self.net.readout = False
-
-        
 
         # Normalize it to find the average likelihood for the sample
         likelihood = likelihood / l
@@ -131,13 +131,27 @@ class FAIRLNet:
 
     # Find the next state given s and a, encoded using the FCN input space
     def next_state_fcn(self, s, a):
-        s_cp = s.clone().tolist()
-        next_state = self.P[int(s_cp[0]), int(s_cp[1])][a]
-        if self.readout and False:
-            print(self.P.shape)
-            print(f"A: {a}")
-            print(f"Next state: {next_state}")
-        s_prime = torch.tensor([next_state[0], next_state[1], s_cp[2], s_cp[3]])
+        if self.rand == "g":
+            s_cp = s.clone().tolist()
+            next_state = self.P[int(s_cp[0]), int(s_cp[1])][a]
+            if self.readout and False:
+                print(self.P.shape)
+                print(f"A: {a}")
+                print(f"Next state: {next_state}")
+            s_prime = torch.tensor([next_state[0], next_state[1], s_cp[2], s_cp[3]])
+        elif self.rand == "m":
+            s_cp = s.clone().cpu().numpy().astype(int)
+            s_coords = np.argwhere(s_cp == 2)[0]
+            next_state_coords = self.P[int(s_coords[0]), int(s_coords[1])][a]
+            next_state = s_cp.copy()
+            next_state[int(s_coords[0])][int(s_coords[1])] = 0
+            next_state[int(next_state_coords[0])][int(next_state_coords[1])] = 2
+            s_prime = torch.tensor(next_state)
+        else:
+            s_cp = s.clone().tolist()
+            next_state = self.P[int(s_cp[0]), int(s_cp[1])][a]
+            s_prime = torch.tensor(next_state)
+
         return s_prime
 
     # Calculate the optimal Q function for a given state and action.
@@ -158,31 +172,39 @@ class FAIRLNet:
             m[int(s_cp[2])][int(s_cp[3])] = 3
             if self.readout:
                 print(f"Maze position is {s_cp}")
-                plt.imshow(m.T,cmap=maze_map)
+                plt.imshow(m.T, cmap=maze_map)
                 plt.show()
             self.set_maze(m)
-
+        elif self.rand == "m":
+            # print(s.shape)
+            s_cp = s.clone().cpu().numpy()
+            # m = self.grid_string.copy()
+            self.set_maze(s_cp)
 
         # Grab the state that f will transition to under a
         next_state = self.next_state_fcn(s, a)
 
         # Normalize the state to lie in [-1, 1]
-        next_state_norm = (next_state - self.N / 2) / self.N
+        if self.rand == "g" or self.rand == "":
+            next_state_norm = (next_state - self.N / 2) / self.N
+        else:
+            next_state_norm = (next_state - 1.5) / 1.5
 
         # Push to cuda
         next_state_norm = next_state_norm.float().cuda()
 
         # Find the Q of the next state
         # This is a special case of the expected sum of f from the paper, since the dynamics are deterministic
+        # print("Shape of state is:")
+        # print(next_state_norm.shape)
         Q = self.net(next_state_norm)
-        
+
         # if self.readout:
         #     print("In Q function")
         #     print(f"State is {s}")
         #     print(f"I take action {a}")
         #     print(f"next state is {next_state}")
         #     print(f"Net output is {Q}")
-
 
         # Make sure that the network didn't overflow
         if Q[0].isnan():
@@ -230,13 +252,25 @@ class FAIRLNet:
         goal_pos = np.argwhere(m == 3)[0]
 
         # For each point in the maze, calculate the reward
-        for i in range(self.N):
-            for j in range(self.N):
-                # Grab the reward at that point
-                r[i, j] = self.r(
-                    torch.tensor([i, j, goal_pos[0], goal_pos[1]]).float().cuda()
-                )
+        if self.rand == "g" or self.rand == "":
+            for i in range(self.N):
+                for j in range(self.N):
+                    # Grab the reward at that point
+                    r[i, j] = self.r(
+                        torch.tensor([i, j, goal_pos[0], goal_pos[1]]).float().cuda()
+                    )
+        elif self.rand == "m":
+            for i in range(self.N):
+                for j in range(self.N):
+                    s_now = m.copy()
+                    curr_pos = np.argwhere(s_now == 2)[0]
+                    s_now[curr_pos[0]][curr_pos[1]] = 0
+                    s_now[i][j] = 2
+                    r[i, j] = self.r(torch.tensor(s_now).float().cuda())
+        else:
+            print("Not implemented!")
         return r
+
 
 # Perform one epoch of training
 def train_step(train_loader, optimizer, criterion, f_net):
@@ -303,7 +337,7 @@ def eval_step(test_dataset, test_loader, f_net, criterion, env, num_eval_runs, r
 
             # Grab each element of the output
             output = torch.zeros((state.shape[0],), dtype=torch.long)
-            Q_vecs = torch.zeros((state.shape[0],4))
+            Q_vecs = torch.zeros((state.shape[0], 4))
             for i, s in enumerate(state):
                 output[i] = f_net.Q_vector(s).argmax().item()
                 Q_vecs[i] = f_net.Q_vector(s)
@@ -317,7 +351,6 @@ def eval_step(test_dataset, test_loader, f_net, criterion, env, num_eval_runs, r
 
             # Batch size
             total = action.size(0)
-
 
             # _, predicted = torch.max(output.data, 1)
             action = action.cpu()
@@ -340,14 +373,6 @@ def eval_step(test_dataset, test_loader, f_net, criterion, env, num_eval_runs, r
     batch_reward = []
     # If the goal or maze is randomized, generate a new problem
     if r == "g":
-        # goal_now = random_goal(env)
-        # f_net.readout = True
-        # plt.imshow(env.grid_string.T, cmap=maze_map)
-        # plt.show()
-        # env.set_goal([goal_now[1], goal_now[0]])
-        # plt.imshow(env.grid_string.T, cmap=maze_map)
-        # plt.show()
-
         goal = random_goal(env)
         # print(f"I set goal to {goal}")
         # self.env.set_goal([s_cp[3], s_cp[2]])
@@ -358,13 +383,17 @@ def eval_step(test_dataset, test_loader, f_net, criterion, env, num_eval_runs, r
         f_net.set_maze(m)
         env.set_grid_string(m)
 
+        obs = env.reset()
+    elif r == "m":
+        m = generate_maze(env.board_size)
+
+        f_net.set_maze(m)
+        env.set_grid_string(m)
+
         # plt.imshow(env.grid_string.T, cmap=maze_map)
         # plt.show()
 
         obs = env.reset()
-    elif r == "m":
-        obs = env.reset(grid_string=generate_maze(env.board_size))
-        f_net.set_maze(env.grid_string)
     else:
         obs = env.reset()
 
@@ -404,8 +433,15 @@ def eval_step(test_dataset, test_loader, f_net, criterion, env, num_eval_runs, r
 
             obs = env.reset()
         elif r == "m":
-            obs = env.reset(grid_string=generate_maze(env.board_size))
-            f_net.set_maze(env.grid_string)
+            m = generate_maze(env.board_size)
+
+            f_net.set_maze(m)
+            env.set_grid_string(m)
+
+            # plt.imshow(env.grid_string.T, cmap=maze_map)
+            # plt.show()
+
+            obs = env.reset()
         else:
             obs = env.reset()
 
@@ -490,10 +526,23 @@ def save_run(
     # Collect the final predicted reward on a set of mazes
     with torch.no_grad():
         if r == "m":
-            random_maze = generate_maze(env.board_size)
-            reward_vis = f_net.get_maze_reward(random_maze)
-            reward_fig = visualize_reward(random_maze, reward_vis)
-            plt.savefig(f"logs/{save_dir}/{save_string}/" + save_string + "_reward.png")
+            for i in range(10):
+                random_maze = generate_maze(env.board_size)
+
+                f_net.set_maze(random_maze)
+                env.set_grid_string(random_maze)
+
+                # plt.imshow(env.grid_string.T, cmap=maze_map)
+                # plt.show()
+
+                reward_vis = f_net.get_maze_reward(random_maze)
+                reward_fig = visualize_reward(random_maze, reward_vis)
+                plt.title("Using discount factor gamma = .2")
+                # Save the figure
+                plt.savefig(
+                    f"logs/{save_dir}/{save_string}/" + save_string + f"_reward_{i}.png"
+                )
+                plt.show()
         elif r == "g":
             # Set a random goal
             for i in range(10):
@@ -517,8 +566,6 @@ def save_run(
                 )
                 plt.show()
 
-
-
                 # reward_vis = f_net.get_maze_reward(env.grid_string)
 
                 # reward_fig = visualize_reward(env.grid_string.T, reward_vis.T)
@@ -529,9 +576,7 @@ def save_run(
                 # )
                 # plt.show()
 
-
         else:
-
             reward_vis = f_net.get_maze_reward(env.grid_string)
 
             reward_fig = visualize_reward(env.grid_string.T, reward_vis)
@@ -551,7 +596,6 @@ def save_run(
                 f"logs/{save_dir}/{save_string}/" + save_string + f"_reward_f.png"
             )
             plt.show()
-
 
 
 def RunFAIRL(
@@ -748,7 +792,6 @@ def generateExpertTrajectory(env, r="", maze=None):
     cur_trajectory = Trajectory()
     while True:
         action = policy[obs_s[0], obs_s[1]]
-
 
         obs_old = obs
 

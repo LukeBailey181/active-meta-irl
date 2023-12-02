@@ -17,7 +17,7 @@ from helpers import (
     visualize_reward,
     get_transition_states,
     get_transition_deltas,
-    maze_map
+    maze_map,
 )
 from maze_env import Trajectory
 
@@ -36,7 +36,7 @@ class ValNet(nn.Module):
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
         x = self.fc4(x)
-        
+
         output = torch.sigmoid(x) * 10
         return output
 
@@ -75,17 +75,14 @@ class LikelihoodLoss(nn.Module):
 
         # Caclulate the log-likelihood of each correct action
         for i, a in enumerate(actions):
-            if states[i][0] == 8. and states[i][1] == 6. and False:
+            if states[i][0] == 8.0 and states[i][1] == 6.0 and False:
                 print("\n\n Running eval")
                 self.net.readout = True
             likelihood -= self.b * self.net.Q(states[i], int(a)) - torch.log(
                 torch.sum(torch.exp(self.b * self.net.Q_vector(states[i])))
             )
 
-
             self.net.readout = False
-
-        
 
         # Normalize it to find the average likelihood for the sample
         likelihood = likelihood / l
@@ -158,10 +155,9 @@ class FAIRLNet:
             m[int(s_cp[2])][int(s_cp[3])] = 3
             if self.readout:
                 print(f"Maze position is {s_cp}")
-                plt.imshow(m.T,cmap=maze_map)
+                plt.imshow(m.T, cmap=maze_map)
                 plt.show()
             self.set_maze(m)
-
 
         # Grab the state that f will transition to under a
         next_state = self.next_state_fcn(s, a)
@@ -175,14 +171,13 @@ class FAIRLNet:
         # Find the Q of the next state
         # This is a special case of the expected sum of f from the paper, since the dynamics are deterministic
         Q = self.net(next_state_norm)
-        
+
         # if self.readout:
         #     print("In Q function")
         #     print(f"State is {s}")
         #     print(f"I take action {a}")
         #     print(f"next state is {next_state}")
         #     print(f"Net output is {Q}")
-
 
         # Make sure that the network didn't overflow
         if Q[0].isnan():
@@ -237,6 +232,7 @@ class FAIRLNet:
                     torch.tensor([i, j, goal_pos[0], goal_pos[1]]).float().cuda()
                 )
         return r
+
 
 # Perform one epoch of training
 def train_step(train_loader, optimizer, criterion, f_net):
@@ -303,7 +299,7 @@ def eval_step(test_dataset, test_loader, f_net, criterion, env, num_eval_runs, r
 
             # Grab each element of the output
             output = torch.zeros((state.shape[0],), dtype=torch.long)
-            Q_vecs = torch.zeros((state.shape[0],4))
+            Q_vecs = torch.zeros((state.shape[0], 4))
             for i, s in enumerate(state):
                 output[i] = f_net.Q_vector(s).argmax().item()
                 Q_vecs[i] = f_net.Q_vector(s)
@@ -317,7 +313,6 @@ def eval_step(test_dataset, test_loader, f_net, criterion, env, num_eval_runs, r
 
             # Batch size
             total = action.size(0)
-
 
             # _, predicted = torch.max(output.data, 1)
             action = action.cpu()
@@ -517,8 +512,6 @@ def save_run(
                 )
                 plt.show()
 
-
-
                 # reward_vis = f_net.get_maze_reward(env.grid_string)
 
                 # reward_fig = visualize_reward(env.grid_string.T, reward_vis.T)
@@ -529,9 +522,7 @@ def save_run(
                 # )
                 # plt.show()
 
-
         else:
-
             reward_vis = f_net.get_maze_reward(env.grid_string)
 
             reward_fig = visualize_reward(env.grid_string.T, reward_vis)
@@ -551,7 +542,6 @@ def save_run(
                 f"logs/{save_dir}/{save_string}/" + save_string + f"_reward_f.png"
             )
             plt.show()
-
 
 
 def RunFAIRL(
@@ -748,7 +738,6 @@ def generateExpertTrajectory(env, r="", maze=None):
     cur_trajectory = Trajectory()
     while True:
         action = policy[obs_s[0], obs_s[1]]
-
 
         obs_old = obs
 

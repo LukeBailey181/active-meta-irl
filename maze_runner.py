@@ -6,8 +6,10 @@ from mazes import *
 from helpers import *
 import argparse
 from algos.bc import BehaviorCloning, generateExpertDataset
+from algos.fairl import generateExpertDataset as genDataFairl
 import yaml
 from algos.active_bc import active_bc
+from algos.fairl import RunFAIRL
 
 control_options = ["manual", "random", "policy", "expert", "bc", "bc-al"]
 randomization_options = ["g", "m", ""]
@@ -18,6 +20,36 @@ maze_options = ["small", "big", "huge"]
 def manualController(env, config):
     manual_control = ManualControl(env, seed=42, set_goal=True)
     manual_control.start()
+
+
+def fairlController(env, config):
+    if config["base"]["num_expert_samples"] is not None:
+        num_train_samples = config["base"]["num_expert_samples"]
+    elif config["base"]["num_train_samples"] is not None:
+        num_train_samples = config["base"]["num_train_samples"]
+    else:
+        num_train_samples = 50
+
+    num_test_samples = config["fairl"]["num_test_samples"]
+
+    r = config["base"]["randomize"]
+
+    train_dataset, test_dataset = genDataFairl(
+        env,
+        num_train_samples=num_train_samples,
+        num_test_samples=num_test_samples,
+        r=r,
+    )
+
+    print("Train dataset size: ", len(train_dataset))
+
+    RunFAIRL(
+        train_dataset=train_dataset,
+        test_dataset=test_dataset,
+        env=env,
+        config=config,
+        N=num_train_samples,
+    )
 
 
 def bcController(env, config):
@@ -106,6 +138,8 @@ def main(config, maze_init):
         bcController(env, config)
     elif config["base"]["control"] == "bc-al":
         bcAlController(env, config)
+    elif config["base"]["control"] == "fairl":
+        fairlController(env, config)
     else:
         print("Invalid control type")
 
@@ -128,7 +162,7 @@ def update_config(config, args):
         config["base"]["randomize"] = ""
     if config["base"]["size"] is None:
         config["base"]["size"] = None
-    if config["base"]["maze"] is None and args.size is None:
+    if not ("maze" in config["base"].keys()) and args.size is None:
         config["base"]["maze"] = "big"
     if config["base"]["network"] is None:
         config["base"]["network"] = "fc"
@@ -227,7 +261,7 @@ if __name__ == "__main__":
     ):
         print("Cannot randomize goal without specifying a fixed maze or size.")
         exit()
-    elif config["base"]["randomize"] == "g" and config["base"]["maze"]:
+    elif config["base"]["randomize"] == "g" and config["base"]["maze"] != "None":
         if config["base"]["maze"] == "small":
             maze = small_maze
         elif config["base"]["maze"] == "big":
@@ -245,7 +279,7 @@ if __name__ == "__main__":
         maze = generate_maze(config["base"]["size"])
         if config["base"]["maze"]:
             print("WARNING: Ignoring arg maze since maze randomization was specified.")
-    elif config["base"]["maze"]:
+    elif "maze" in config["base"].keys():
         if config["base"]["maze"] == "small":
             maze = small_maze
         elif config["base"]["maze"] == "big":

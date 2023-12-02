@@ -10,6 +10,9 @@ from minigrid.minigrid_env import MiniGridEnv
 
 from itertools import chain
 
+import matplotlib.pyplot as plt
+from helpers import maze_map
+
 
 # A maze class which allows the user to specify the maze layout
 class MutableMaze(MiniGridEnv):
@@ -32,7 +35,9 @@ class MutableMaze(MiniGridEnv):
         self.board_size = board_size
 
         # The maze is specified as a 2D integer array
-        init_grid_string = np.array(init_grid_string).reshape((board_size, board_size))
+        init_grid_string = (
+            np.array(init_grid_string).reshape((board_size, board_size)).copy()
+        )
         self.grid_string = init_grid_string.T
 
         self.goal_pos = np.argwhere(self.grid_string == 3)[0]
@@ -71,7 +76,7 @@ class MutableMaze(MiniGridEnv):
 
     # Set the grid string
     def set_grid_string(self, string):
-        string = np.array(string)
+        string = np.array(string).copy()
 
         # Check that each character is in {0,1,2,3}, and 2 and 3 appear exactly once
         if not (
@@ -80,12 +85,16 @@ class MutableMaze(MiniGridEnv):
             and np.sum(string == 3) == 1
         ):
             print("Invalid grid string. Reverting to default.")
+            plt.imshow(string.T, cmap=maze_map)
+            plt.show()
+            assert False
+            print(string)
             return False
 
         # Check that the length matches the grid dimensions
         if string.shape[0] * string.shape[1] == self.board_size**2:
             # Shape the string into a square
-            string = string.reshape((self.board_size, self.board_size)).T
+            string = string.reshape((self.board_size, self.board_size))
             self.grid_string = string
 
             return True

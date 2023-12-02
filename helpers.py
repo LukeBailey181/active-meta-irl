@@ -5,6 +5,7 @@ from matplotlib.colors import ListedColormap
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+import PIL.Image as Image
 
 #################################################################################
 ###  This file contains a number of helper functions, including:              ###
@@ -21,6 +22,8 @@ import torch
 ###   visualize_optimal_moves: a function given by                            ###
 ###                Optimal Moves (N, N) ---> Heatmap + Arrows of the maze     ###
 #################################################################################
+
+maze_map = ListedColormap(["white", "black", "lightseagreen", "lawngreen"])
 
 # Dictionaries with all the possible actions/keys/tuples
 key_to_action = {
@@ -103,12 +106,13 @@ class ConvNetMC(nn.Module):
 def get_transition_matrix(grid_string):
     N = grid_string.shape[0]
     T = np.zeros((N**2, 4, N**2))
+    grid_string = grid_string.T
 
     for i in range(N):
         for j in range(N):
             # If a wall or goal, it doesn't matter---just have stay in the same place WP 1
             if grid_string[i, j] == 1 or grid_string[i, j] == 3:
-                print(i * N + j)
+                # print(i * N + j)
                 T[i * N + j][:, i * N + j] = 1
                 continue
 
@@ -116,7 +120,7 @@ def get_transition_matrix(grid_string):
             for action in range(4):
                 # Try to go right
                 if action == 0:
-                    print(i, j)
+                    # print(i, j)
                     if grid_string[i, j + 1] == 1:
                         T[i * N + j, action, i * N + j] = 1
                     else:
@@ -139,6 +143,122 @@ def get_transition_matrix(grid_string):
     return T
 
 
+def get_transition_deltas(grid_string):
+    N = grid_string.shape[0]
+    T = np.zeros((N, N, 4, 2))
+    # grid_string = grid_string.T
+
+    for i in range(N):
+        for j in range(N):
+            # If a wall or goal, it doesn't matter---just have stay in the same place WP 1
+            if grid_string[i, j] == 1 or grid_string[i, j] == 3:
+                # print(i * N + j)
+                # T[i * N + j][:, i * N + j] = 1
+                T[i, j, :, 0] = i
+                T[i, j, :, 1] = j
+                continue
+
+            # Otherwise, the agent might be here
+            for action in range(4):
+                # Try to go right
+                if action == 0:
+                    # print(i, j)
+                    if grid_string[i, j + 1] == 1:
+                        # T[i * N + j, action, i * N + j] = 1
+                        T[i, j, action, 0] = 0
+                        T[i, j, action, 1] = 0
+                    else:
+                        # T[i * N + j, action, i * N + j + 1] = 1
+                        T[i, j, action, 0] = 1
+                        T[i, j, action, 1] = 0
+                elif action == 1:
+                    if grid_string[i + 1, j] == 1:
+                        # T[i * N + j, action, i * N + j] = 1
+                        T[i, j, action, 0] = 0
+                        T[i, j, action, 1] = 0
+                    else:
+                        # T[i * N + j, action, (i + 1) * N + j] = 1
+                        T[i, j, action, 0] = 0
+                        T[i, j, action, 1] = 1
+                elif action == 2:
+                    if grid_string[i, j - 1] == 1:
+                        # T[i * N + j, action, i * N + j] = 1
+                        T[i, j, action, 0] = 0
+                        T[i, j, action, 1] = 0
+                    else:
+                        # T[i * N + j, action, i * N + j - 1] = 1
+                        T[i, j, action, 0] = -1
+                        T[i, j, action, 1] = 0
+                elif action == 3:
+                    if grid_string[i - 1, j] == 1:
+                        # T[i * N + j, action, i * N + j] = 1
+                        T[i, j, action, 0] = 0
+                        T[i, j, action, 1] = 0
+                    else:
+                        # T[i * N + j, action, (i - 1) * N + j] = 1
+                        T[i, j, action, 0] = 0
+                        T[i, j, action, 1] = -1
+    return np.transpose(T, axes=[1, 0, 2, 3])
+
+
+def get_transition_states(grid_string):
+    N = grid_string.shape[0]
+    T = np.zeros((N, N, 4, 2))
+    # grid_string = grid_string.T
+
+    for i in range(N):
+        for j in range(N):
+            # If a wall or goal, it doesn't matter---just have stay in the same place WP 1
+            if grid_string[i, j] == 1 or grid_string[i, j] == 3:
+                # print(i * N + j)
+                # T[i * N + j][:, i * N + j] = 1
+                T[i, j, :, 0] = i
+                T[i, j, :, 1] = j
+                continue
+
+            # Otherwise, the agent might be here
+            for action in range(4):
+                # Try to go right
+                if action == 0:
+                    # print(i, j)
+                    if grid_string[i, j + 1] == 1:
+                        # T[i * N + j, action, i * N + j] = 1
+                        T[i, j, action, 0] = j
+                        T[i, j, action, 1] = i
+                    else:
+                        # T[i * N + j, action, i * N + j + 1] = 1
+                        T[i, j, action, 0] = j + 1
+                        T[i, j, action, 1] = i
+                elif action == 1:
+                    if grid_string[i + 1, j] == 1:
+                        # T[i * N + j, action, i * N + j] = 1
+                        T[i, j, action, 0] = j
+                        T[i, j, action, 1] = i
+                    else:
+                        # T[i * N + j, action, (i + 1) * N + j] = 1
+                        T[i, j, action, 0] = j
+                        T[i, j, action, 1] = i + 1
+                elif action == 2:
+                    if grid_string[i, j - 1] == 1:
+                        # T[i * N + j, action, i * N + j] = 1
+                        T[i, j, action, 0] = j
+                        T[i, j, action, 1] = i
+                    else:
+                        # T[i * N + j, action, i * N + j - 1] = 1
+                        T[i, j, action, 0] = j - 1
+                        T[i, j, action, 1] = i
+                elif action == 3:
+                    if grid_string[i - 1, j] == 1:
+                        # T[i * N + j, action, i * N + j] = 1
+                        T[i, j, action, 0] = j
+                        T[i, j, action, 1] = i
+                    else:
+                        # T[i * N + j, action, (i - 1) * N + j] = 1
+                        T[i, j, action, 0] = j
+                        T[i, j, action, 1] = i - 1
+    return np.transpose(T, axes=[1, 0, 2, 3])
+
+
 # Shows the transition probabilities for a given state given transition matrix T
 def visualize_transition(T, state):
     N = int(np.sqrt(T.shape[0]))
@@ -158,6 +278,40 @@ def visualize_transition(T, state):
         axs[i // 2, i % 2].scatter(y, x, c="r", s=40)
 
     plt.show()
+
+
+def visualize_reward(maze, reward):
+    # Create two subplots size by side
+    fig, axs = plt.subplots(1, 2)
+    # On the left subplot plot the maze
+    cmap = ListedColormap(["white", "black", "lightseagreen", "lawngreen"])
+
+    # Visualize the maze
+    axs[0].imshow(maze.T, cmap=cmap, interpolation="nearest")
+    axs[0].set_title("Maze")
+    axs[0].set_xlabel("x")
+    axs[0].set_ylabel("y")
+
+    x = np.arange(0, maze.shape[0])
+    y = np.arange(0, maze.shape[1])
+
+    walls = maze == 1
+
+    axs[1].imshow(walls.T, cmap="binary", interpolation="nearest")
+
+    reward[walls == 1] = np.nan
+
+    # On the right subplot plot the reward
+    axs[1].pcolormesh(x, y, reward.T)
+    # Make the walls black
+    # axs[1].imshow(maze.T, cmap=cmap, interpolation="nearest", alpha=0.3)
+    axs[1].set_title("Reward")
+    axs[1].set_xlabel("x")
+    axs[1].set_ylabel("y")
+
+    # Return the figure
+    # plt.show()
+    return fig
 
 
 # Returns a matrix of optimal moves for a given maze at each state
@@ -188,6 +342,7 @@ def solve_maze(maze):
                 current.append((new_x, new_y))
                 optimal_moves[new_x][new_y] = key_to_action[tuple_to_key[(-dx, -dy)]]
 
+    # return optimal_moves
     return optimal_moves.T
 
 
@@ -195,6 +350,7 @@ def solve_maze(maze):
 def visualize_optimal_moves(maze, optimal_moves, save=False):
     # Plot the maze so that walls are black, empty spaces are white, the goal is green, and the start is blue
     cmap = ListedColormap(["white", "black", "lightseagreen", "lawngreen"])
+    # maze = maze.T
 
     # Visualize the maze
     plt.imshow(maze.T, cmap=cmap, interpolation="nearest")
