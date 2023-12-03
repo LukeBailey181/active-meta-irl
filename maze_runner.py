@@ -10,6 +10,8 @@ from algos.fairl import generateExpertDataset as genDataFairl
 import yaml
 from algos.active_bc import active_bc
 from algos.fairl import RunFAIRL
+from algos.heuristics import goal_agent_manhattan, goal_manhattan, edit_distance
+from helpers import generate_maze
 
 control_options = ["manual", "random", "policy", "expert", "bc", "bc-al"]
 randomization_options = ["g", "m", ""]
@@ -166,6 +168,18 @@ def update_config(config, args):
         config["base"]["maze"] = "big"
     if config["base"]["network"] is None:
         config["base"]["network"] = "fc"
+
+    if config.get("al") is not None:
+        # We have al config items
+        al_config = config["al"]
+        if al_config.get("heuristic") is not None:
+            # Choose correct heuristic 
+            if config["al"]["heuristic"] == "gam":
+                config["al"]["heuristic"] = goal_agent_manhattan
+            elif config["al"]["heuristic"] == "gm":
+                config["al"]["heuristic"] = goal_manhattan
+            elif config["al"]["heuristic"] == "ed":
+                config["al"]["heuristic"] = edit_distance
 
     return config
 

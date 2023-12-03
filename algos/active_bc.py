@@ -6,65 +6,160 @@ import numpy as np
 import gym
 from maze_env import MutableMaze
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 from goal_setters import random_goal
 from mazes import *
 import os
 import yaml
 from helpers import Net, ConvNet
 from maze_env import Trajectory
+from algos.acquisition_funcs import failed_min_max_acquisition
+from helpers import generateExpertTrajectory, generate_maze
 
-
-def heuristic(m1, m2):
-    agent_1 = np.argwhere(m1 == 2)[0]
-    agent_2 = np.argwhere(m2 == 2)[0]
-
-    goal_1 = np.argwhere(m1 == 3)[0]
-    goal_2 = np.argwhere(m2 == 3)[0]
-
-    m1_blocks = m1 == 1
-    m2_blocks = m2 == 1
-
-    weights = [1, 1, 1]
-
-    N = m1_blocks.shape[0]
-
-    # Compute the manhattan distance between the two agents
-    agent_manhattan = (
-        np.abs(agent_1[0] - agent_2[0]) + np.abs(agent_1[1] - agent_2[1])
-    ) / (2 * N)
-
-    # Compute the manhattan distance between the two goals
-    goal_manhattan = (np.abs(goal_1[0] - goal_2[0]) + np.abs(goal_1[1] - goal_2[1])) / (
-        2 * N
-    )
-
-    overlap = np.sum(m1_blocks != m2_blocks) / N**2
-
-    heuristic = (
-        weights[0] * agent_manhattan
-        + weights[1] * goal_manhattan
-        + weights[2] * overlap
-    )
-    # Turn heuristic from a numpy array into a float
-
-    return heuristic
 
 
 def active_bc(env=None, budget=100, config=None):
+
+    r = config["base"]["randomize"]
+    #if r == "g":
+    #    goal_randomized_bc_al(env, budget, config)
+    #elif r == "m":
+    #    maze_randomized_bc_al(env, budget, config)
+    #else:
+    #    return
+
+    if r in ["g", "m"]:
+        randomized_bc_al(env, budget, config)
+    else: 
+        raise NotImplementedError(f"Randomization type {r} not implemented")
+
+
+def randomized_bc_al(env, budget, config):
+    """
+    Active BC with randomization for goal and maze using heuristic over failed mazes
+    """ 
+
+    # ----- Setup for active learning ----- #
+    cur_mazes = []
+    max_heuristics = []
+    acquisition_func_name = config["al"]["acquisition_func_name"]
+    batch_size = config["al"]["batch_size"]
+    num_trajectories_sampled = 0
+    states = []
+    actions = []
+
+
     r = config["base"]["randomize"]
 
-    if r == "g":
-        goal_randomized_bc_al(env, budget, config)
-    elif r == "m":
-        maze_randomized_bc_al(env, budget, config)
-    else:
-        return
+    init_trajectories = []
+    num_traj_to_sample = min(batch_size, budget)
+    for i in range(num_traj_to_sample):
+        # Generate initial random mazes
+        if r == "m":
+            cur_mazes.append(np.copy(generate_maze(env.board_size)))
+        elif r == "g":
+            goal_location = random_goal(env)
+            env.set_goal(goal_location)
+            cur_mazes.append(np.copy(env.grid_string))
 
+            #print("\nDEBUG")
+            #print(f"goals: {goal_location}\n")
+            #cmap = ListedColormap(["white", "black", "lightseagreen", "lawngreen"])
+            #plt.imshow(cur_mazes[-1].T, cmap=cmap)
+            #plt.show()
 
-def maze_randomized_bc_al(env, budget, config):
+        init_trajectories.append(
+            generateExpertTrajectory(env, r=config["base"]["randomize"], maze=cur_mazes[i])
+        )
+        num_trajectories_sampled += 1
+
+    # Generate the initial dataset
+    state_action_tuples = [traj.transitions() for traj in init_trajectories]
+
+    for traj in state_action_tuples:
+        for state, action, _ in traj:
+            states.append(state)
+            actions.append(action)
+
+    np_states = np.array(states)
+    np_actions = np.array(actions)
+
+    idx, net, failed_configs = BehaviorCloning(
+        train_dataset=(np_states, np_actions),
+        test_dataset=None,
+        env=env,
+        config=config,
+        net=None,
+        idx=0,
+    )
+
+    # ----- Active learning loop ----- #
+    while num_trajectories_sampled < budget:
+        print(f"Training on {num_trajectories_sampled} expert samples")
+
+        # Calculate how many trajectories we want
+        num_traj_to_sample = min(batch_size, budget - num_trajectories_sampled)
+
+        num_trajectories_sampled += num_traj_to_sample
+
+        # Query aquisition function and update dataset
+        if acquisition_func_name == "failed_min_max":
+            new_states, new_actions, cur_mazes, info = failed_min_max_acquisition(
+                env=env,
+                config=config,
+                num_trajectories=num_traj_to_sample,
+                cur_mazes=cur_mazes,
+                failed_configs=failed_configs,
+            )
+        else:
+            raise NotImplementedError(f"Acquisition function {acquisition_func_name} not implemented")
+        
+        states += new_states
+        actions += new_actions
+
+        # Run BC on the updated dataset
+        np_states = np.array(states)
+        np_actions = np.array(actions)
+        idx, net, failed_configs = BehaviorCloning(
+            train_dataset=(np_states, np_actions),
+            test_dataset=None,
+            env=env,
+            config=config,
+            net=None,
+            idx=(idx + 1),
+        )
+ 
+    assert(num_trajectories_sampled == budget)
+    # ----- SAVE MODEL AND PLOT RESULTS ----- #
+
+    # If logs/bc_al/al_model_{budget} doesn't exist, create it
+    if not os.path.exists(
+        f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}"
+    ):
+        os.makedirs(f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}")
+
+    torch.save(
+        net.state_dict(),
+        f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}/bc_al_model_samples_{budget}.pt",
+    )
+
+    # Plot the max heuristics
+    plt.plot(max_heuristics)
+    plt.xlabel("Iteration")
+    plt.ylabel("Max Heuristic")
+    plt.title("Max Heuristic vs. Iteration")
+    plt.savefig(
+        f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}/max_heuristics.png"
+    )
+
+    return states, actions 
+
+def maze_randomized_bc_al_DEP(env, budget, config):
     mazes = []
     max_heuristics = []
     trajectories = []
+    heuristic = config["al"]["heuristic"]
+    assert(heuristic is not None)
 
     B = 100
 
@@ -176,6 +271,8 @@ def maze_randomized_bc_al(env, budget, config):
                     states.append(state)
                     actions.append(action)
 
+        ### ABOVE HERE IS AQUISITION FUNCTION
+
         np_states = np.array(states)
         np_actions = np.array(actions)
 
@@ -188,7 +285,7 @@ def maze_randomized_bc_al(env, budget, config):
             idx=(idx + 1),
         )
 
-    # Save the final model
+        # Save the final model
 
     # If logs/bc_al/al_model_{budget} doesn't exist, create it
     if not os.path.exists(
@@ -210,11 +307,12 @@ def maze_randomized_bc_al(env, budget, config):
         f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}/max_heuristics.png"
     )
 
-
-def goal_randomized_bc_al(env, budget, config):
+def goal_randomized_bc_al_DEP(env, budget, config):
     mazes = []
 
     r = config["base"]["randomize"]
+    heuristic = config["al"]["heuristic"]
+    assert(heuristic is not None)
 
     env.set_goal(random_goal(env))
     init_maze = np.copy(env.grid_string.T)
@@ -472,39 +570,3 @@ def BehaviorCloning(
             obs = env.reset()
 
     return idx, net, failed_configs
-
-
-def generateExpertTrajectory(env, r="", maze=None):
-    if maze is not None:
-        obs = env.reset(grid_string=maze)
-        obs_s = env.get_state_obs()
-    elif r == "g":
-        env.set_goal(random_goal(env))
-        obs = env.reset()
-        obs_s = env.get_state_obs()
-    elif r == "m":
-        obs = env.reset(grid_string=generate_maze(env.board_size))
-        obs_s = env.get_state_obs()
-    else:
-        obs = env.reset()
-        obs_s = env.get_state_obs()
-
-    policy = solve_maze(env.grid_string)
-
-    cur_trajectory = Trajectory()
-    while True:
-        action = policy[obs_s[0], obs_s[1]]
-
-        obs_old = obs
-
-        obs, reward, term, trunc, info = env.step(action)
-        obs_s = env.get_state_obs()
-
-        cur_trajectory.add_transition(list(obs_old), action, obs)
-
-        env.render()
-
-        if term or trunc:
-            break
-
-    return cur_trajectory

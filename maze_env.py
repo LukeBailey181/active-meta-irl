@@ -113,15 +113,22 @@ class MutableMaze(MiniGridEnv):
             print("Position outside of board. Reverting to default.")
             return False
 
-        if self.grid_string[x][y] == 0:
+        if self.grid_string[x][y] == 0 or self.grid_string[x][y] == 3:
             current_goal_pos = np.argwhere(self.grid_string == 3)[0]
             self.grid_string[current_goal_pos[0]][current_goal_pos[1]] = 0
             self.grid_string[x][y] = 3
             return True
 
         # Otherwise
-        print("Position occupied. Reverting to default.")
-        return False
+        raise ValueError("Position occupied")
+
+        #print("\nDEBUG")
+        #print(f"goals: {goal_pos}\n")
+        #cmap = ListedColormap(["white", "black", "lightseagreen", "lawngreen"])
+        #plt.imshow(cur_mazes[-1].T, cmap=cmap)
+        #plt.show()
+
+        #return False
 
     # Set the maze using the grid string
     def _gen_grid(self, width, height):

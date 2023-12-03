@@ -12,7 +12,7 @@ import os
 import yaml
 from goal_setters import random_goal
 from maze_env import MutableMaze
-from helpers import Net, ConvNet
+from helpers import Net, ConvNet, generate_maze
 
 eval_types = ["samples", "size"]
 

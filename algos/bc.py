@@ -10,7 +10,7 @@ from goal_setters import random_goal
 from mazes import *
 import os
 import yaml
-from helpers import Net, ConvNet, ConvNetMC
+from helpers import Net, ConvNet, ConvNetMC, generate_maze
 from maze_env import Trajectory
 
 
