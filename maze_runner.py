@@ -10,7 +10,7 @@ from algos.fairl import generateExpertDataset as genDataFairl
 import yaml
 from algos.active_bc import active_bc
 from algos.fairl import RunFAIRL
-from algos.heuristics import goal_agent_manhattan, goal_manhattan, edit_distance
+from algos.heuristics import goal_agent_manhattan, goal_manhattan, edit_distance, random_distance
 from helpers import generate_maze
 
 control_options = ["manual", "random", "policy", "expert", "bc", "bc-al"]
@@ -180,6 +180,10 @@ def update_config(config, args):
                 config["al"]["heuristic"] = goal_manhattan
             elif config["al"]["heuristic"] == "ed":
                 config["al"]["heuristic"] = edit_distance
+            elif config["al"]["heuristic"] == "random":
+                config["al"]["heuristic"] = random_distance
+            else:
+                raise ValueError("Invalid heuristic name.")
 
     return config
 

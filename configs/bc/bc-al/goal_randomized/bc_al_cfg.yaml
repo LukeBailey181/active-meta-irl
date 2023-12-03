@@ -1,7 +1,7 @@
 base:
   config: "configs/bc/bc_exp_cfg.yaml"
   control: "bc-al"
-  save_dir: "bc-al"
+  save_dir: "bc-al-big-map/gam"
   randomize: "g"
   maze: "big"
   size: None
@@ -14,13 +14,13 @@ bc:
   num_test_samples: 100
   num_eval_runs: 50
   #num_epochs: 5000
-  num_epochs: 500
+  num_epochs: 2000
   batch_size: 32
   learning_rate: 0.001
   save_weights: True
   eval_freq: None
 al:
-  # Heurstic can be "gam", "gm", "ed"
+  # Heurstic can be "gam", "gm", "ed", "random"
   heuristic: "gam"
   acquisition_func_name: "failed_min_max"
   batch_size: 5

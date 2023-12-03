@@ -25,8 +25,6 @@ from goal_setters import random_goal
 ###                Optimal Moves (N, N) ---> Heatmap + Arrows of the maze     ###
 #################################################################################
 
-maze_map = ListedColormap(["white", "black", "lightseagreen", "lawngreen"])
-
 # Dictionaries with all the possible actions/keys/tuples
 key_to_action = {
     "left": 2,

@@ -17,10 +17,9 @@ from helpers import (
     visualize_reward,
     get_transition_states,
     get_transition_deltas,
-    maze_map,
     generate_maze
 )
-from maze_env import Trajectory
+from maze_env import Trajectory, maze_map
 
 
 # Define the network

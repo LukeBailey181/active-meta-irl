@@ -10,10 +10,10 @@ from minigrid.minigrid_env import MiniGridEnv
 
 from itertools import chain
 
+from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
-from helpers import maze_map
 
-
+maze_map = ListedColormap(["white", "black", "lightseagreen", "lawngreen"])
 # A maze class which allows the user to specify the maze layout
 class MutableMaze(MiniGridEnv):
     def __init__(
@@ -38,7 +38,8 @@ class MutableMaze(MiniGridEnv):
         init_grid_string = (
             np.array(init_grid_string).reshape((board_size, board_size)).copy()
         )
-        self.grid_string = init_grid_string.T
+        #self.grid_string = init_grid_string.T
+        self.grid_string = init_grid_string
 
         self.goal_pos = np.argwhere(self.grid_string == 3)[0]
 

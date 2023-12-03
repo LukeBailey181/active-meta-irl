@@ -48,7 +48,6 @@ def randomized_bc_al(env, budget, config):
     states = []
     actions = []
 
-
     r = config["base"]["randomize"]
 
     init_trajectories = []
@@ -95,7 +94,8 @@ def randomized_bc_al(env, budget, config):
 
     # ----- Active learning loop ----- #
     while num_trajectories_sampled < budget:
-        print(f"Training on {num_trajectories_sampled} expert samples")
+        print(f"\nTraining on {num_trajectories_sampled} expert samples")
+        print(f"DEBUG\bnum_mazes = {len(cur_mazes)}")
 
         # Calculate how many trajectories we want
         num_traj_to_sample = min(batch_size, budget - num_trajectories_sampled)
@@ -114,6 +114,7 @@ def randomized_bc_al(env, budget, config):
         else:
             raise NotImplementedError(f"Acquisition function {acquisition_func_name} not implemented")
         
+        #breakpoint()
         states += new_states
         actions += new_actions
 
@@ -128,10 +129,40 @@ def randomized_bc_al(env, budget, config):
             net=None,
             idx=(idx + 1),
         )
+
+        # Save model and state and action datasets
+        save_model(net, config, num_trajectories_sampled, np_states, np_actions)
  
     assert(num_trajectories_sampled == budget)
     # ----- SAVE MODEL AND PLOT RESULTS ----- #
 
+    # Plot the max heuristics
+    #plt.plot(max_heuristics)
+    #plt.xlabel("Iteration")
+    #plt.ylabel("Max Heuristic")
+    #plt.title("Max Heuristic vs. Iteration")
+    #plt.savefig(
+    #    f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}/max_heuristics.png"
+    #)
+
+    return states, actions 
+
+def find_goal(mazes):
+
+    goals = []
+    for maze in mazes:
+        goals.append(np.argwhere(maze == 3)[0])
+        print(np.argwhere(maze == 3)[0])
+
+    for i in range(len(goals)):
+        for j in range(i+1, len(goals)): 
+            if (goals[i] == goals[j]).all():
+                print(f"DUP {goals[i]}")
+    
+
+
+
+def save_model(net, config, budget, states=None, actions=None):
     # If logs/bc_al/al_model_{budget} doesn't exist, create it
     if not os.path.exists(
         f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}"
@@ -143,16 +174,9 @@ def randomized_bc_al(env, budget, config):
         f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}/bc_al_model_samples_{budget}.pt",
     )
 
-    # Plot the max heuristics
-    plt.plot(max_heuristics)
-    plt.xlabel("Iteration")
-    plt.ylabel("Max Heuristic")
-    plt.title("Max Heuristic vs. Iteration")
-    plt.savefig(
-        f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}/max_heuristics.png"
-    )
-
-    return states, actions 
+    if states is not None and actions is not None:
+        np.save(f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}/states_samples_{budget}.npy", states)
+        np.save(f"logs/{config['base']['save_dir']}/bc_al_model_samples_{budget}/actions_samples_{budget}.npy", actions)
 
 def maze_randomized_bc_al_DEP(env, budget, config):
     mazes = []
@@ -433,7 +457,10 @@ def BehaviorCloning(
 
     state_size = train_dataset[0][0].shape[0]
 
-    if torch.cuda.is_available():
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+        print("Running on Apple M1 (MPS)")
+    elif torch.cuda.is_available():
         device = torch.device("cuda:0")
         print("Running on GPU")
     else:
@@ -445,6 +472,7 @@ def BehaviorCloning(
     if network == "fc":
         if net is None:
             net = Net(state_size)
+            net.to(device)
     elif network == "cnn":
         if net is None:
             net = ConvNet(config["base"]["size"])
@@ -494,9 +522,9 @@ def BehaviorCloning(
         epoch_train_losses = []
         epoch_train_accs = []
         for i, (state, action) in enumerate(train_loader):
-            if torch.cuda.is_available():
-                state = state.to(device)
-                action = action.to(device)
+            #if torch.cuda.is_available():
+            state = state.to(device)
+            action = action.to(device)
 
             optimizer.zero_grad()
             output = net(state)
@@ -530,6 +558,8 @@ def BehaviorCloning(
             print("Loss is 0, stopping training")
             break
 
+    print("Final Train Accs:")
+    print(train_accs[-1])
     failed_configs = []
 
     obs = env.reset()
@@ -557,7 +587,8 @@ def BehaviorCloning(
             env.render()
             if term or trunc:
                 if reward == 0:
-                    failed_configs.append(np.copy(env.grid_string.T))
+                    #failed_configs.append(np.copy(env.grid_string.T))
+                    failed_configs.append(np.copy(env.grid_string))
                 break
 
         if r == "g":

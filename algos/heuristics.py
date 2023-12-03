@@ -68,3 +68,7 @@ def goal_manhattan(m1, m2):
 def edit_distance(m1, m2):
     """Compute the edit distance between two mazes"""
     return (m1 != m2).sum()
+
+def random_distance(m1, m2): 
+    """Compute the random distance between two mazes"""
+    return np.random.uniform()
