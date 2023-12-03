@@ -6,6 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import PIL.Image as Image
+from maze_env import Trajectory
+from goal_setters import random_goal
 
 #################################################################################
 ###  This file contains a number of helper functions, including:              ###
@@ -391,3 +393,96 @@ def visualize_optimal_moves(maze, optimal_moves, save=False):
         plt.savefig("optimal_directions.png")
     else:
         plt.show()
+
+def generateExpertTrajectory(env, r="", maze=None):
+    if maze is not None:
+        obs = env.reset(grid_string=maze)
+        obs_s = env.get_state_obs()
+    elif r == "g":
+        env.set_goal(random_goal(env))
+        obs = env.reset()
+        obs_s = env.get_state_obs()
+    elif r == "m":
+        obs = env.reset(grid_string=generate_maze(env.board_size))
+        obs_s = env.get_state_obs()
+    else:
+        obs = env.reset()
+        obs_s = env.get_state_obs()
+
+    policy = solve_maze(env.grid_string)
+
+    cur_trajectory = Trajectory()
+    while True:
+        action = policy[obs_s[0], obs_s[1]]
+
+        obs_old = obs
+
+        obs, reward, term, trunc, info = env.step(action)
+        obs_s = env.get_state_obs()
+
+        cur_trajectory.add_transition(list(obs_old), action, obs)
+
+        env.render()
+
+        if term or trunc:
+            break
+
+    return cur_trajectory
+
+
+def generate_maze(n):
+    # Generate a (possibly impossible) maze
+    def _gen_try(n):
+        maze = np.ones((n, n), dtype=int)
+        maze[1:-1, 1:-1] = 0
+        for i in range(2, n - 2, 2):
+            for j in range(2, n - 2, 2):
+                maze[i, j] = 1
+                if i == 2:
+                    maze[i - 1, j] = 1
+                if j == n - 3:
+                    maze[i, j + 1] = 3
+                if np.random.randint(0, 2) == 0:
+                    maze[i + 1, j] = 1
+                else:
+                    maze[i, j + 1] = 1
+        return maze
+
+    maze = _gen_try(n)
+
+    # Set a random goal
+    zero_idx = np.argwhere(maze == 0)
+    goal_idx = np.random.randint(0, len(zero_idx))
+    maze[zero_idx[goal_idx][0], zero_idx[goal_idx][1]] = 3
+
+    # Solve the maze
+    solution = solve_maze(maze)
+
+    # Check the number of squares unreachable from the goal against the total number of free squares
+    num_dud_squares = np.sum(solution == -1)
+    num_free_squares = np.sum(maze == 0)
+
+    # Repeat until the goal is reachable from at least 90% of the free squares
+    while num_dud_squares / num_free_squares > 0.1:
+        maze = _gen_try(n)
+        zero_idx = np.argwhere(maze == 0)
+        goal_idx = np.random.randint(0, len(zero_idx))
+        maze[zero_idx[goal_idx][0], zero_idx[goal_idx][1]] = 3
+        solution = solve_maze(maze)
+        num_dud_squares = np.sum(solution == -1)
+        num_free_squares = np.sum(maze == 0)
+
+    # Turn all dud squares into walls
+    maze[solution == -1] = 1
+
+    zero_idx = np.argwhere(maze == 0)
+
+    # Add a random start position
+    start_idx = np.random.randint(0, len(zero_idx))
+    maze[zero_idx[start_idx][0], zero_idx[start_idx][1]] = 2
+
+    # Randomlty rotate the maze
+    rot = np.random.randint(0, 4)
+    maze = np.rot90(maze, rot)
+
+    return maze
