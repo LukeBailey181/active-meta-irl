@@ -1,8 +1,8 @@
 
 base:
-  config: "configs/bc/bc-al/maze_randomized/bc_cnn_al_ed_cfg.yaml"
+  config: "configs/bc/bc-al/maze_randomized/bc_cnn_al_random_cfg.yaml"
   control: "bc-al"
-  save_dir: "bc-al/bc-al-maze-size-10/ed_2"
+  save_dir: "bc-al/bc-al-maze-size-10/random_2"
   randomize: "m"
   size: 10
   network: "cnn"
@@ -23,7 +23,7 @@ bc:
   eval_freq: None
 al:
   # Heurstic can be "gam", "gm", "ed", "random"
-  heuristic: "ed"
+  heuristic: "random"
   acquisition_func_name: "failed_min_max"
   batch_size: 500
 eval:

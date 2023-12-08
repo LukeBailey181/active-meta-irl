@@ -1,7 +1,7 @@
 base:
   config: "configs/bc/bc_exp_cfg.yaml"
   control: "bc-al"
-  save_dir: "bc-al-big-map/random"
+  save_dir: "bc-al-big-map-new/random_2"
   randomize: "g"
   maze: "big"
   size: None

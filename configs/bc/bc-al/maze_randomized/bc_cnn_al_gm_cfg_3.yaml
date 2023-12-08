@@ -1,28 +1,30 @@
+
 base:
-  config: "configs/bc/bc_exp_cfg.yaml"
+  config: "configs/bc/bc-al/maze_randomized/bc_cnn_al_gm_cfg.yaml"
   control: "bc-al"
-  save_dir: "bc-al-big-map-new/gm_2"
-  randomize: "g"
-  maze: "big"
-  size: None
-  network: "fc"
+  save_dir: "bc-al/bc-al-maze-size-10/gm_3"
+  randomize: "m"
+  size: 10
+  network: "cnn"
   headless: True
   H: 100
-  num_expert_samples: 50
+  num_expert_samples: 4000
 bc:
   num_train_samples: 100
   num_test_samples: 100
   num_eval_runs: 50
-  #num_epochs: 5000
-  num_epochs: 2000
-  batch_size: 32
+  num_epochs: 1000
+  #num_epochs: 1
+  #num_epochs: 2000
+  batch_size: 512
   learning_rate: 0.001
+  #save_weights: True
   save_weights: True
   eval_freq: None
 al:
   # Heurstic can be "gam", "gm", "ed", "random"
   heuristic: "gm"
   acquisition_func_name: "failed_min_max"
-  batch_size: 5
+  batch_size: 500
 eval:
   num_eval_samples: 200
