@@ -131,7 +131,8 @@ def randomized_bc_al(env, budget, config):
         )
 
         # Save model and state and action datasets
-        save_model(net, config, num_trajectories_sampled, np_states, np_actions)
+        if config["bc"]["save_weights"]:
+            save_model(net, config, num_trajectories_sampled, np_states, np_actions)
  
     assert(num_trajectories_sampled == budget)
     # ----- SAVE MODEL AND PLOT RESULTS ----- #
